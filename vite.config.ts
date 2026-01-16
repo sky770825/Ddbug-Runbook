@@ -32,5 +32,7 @@ export default defineConfig(({ mode }) => {
     assetsDir: 'assets',
     sourcemap: false,
   },
+  // public 目錄中的檔案會自動複製到 dist
+  publicDir: 'public',
   };
 });
