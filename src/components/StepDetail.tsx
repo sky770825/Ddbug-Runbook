@@ -80,11 +80,12 @@ function StepDetail({
       exit={{ opacity: 0, x: -20 }}
       className="h-full flex flex-col min-h-0"
     >
-      {/* Step Header */}
-      <div className="flex-shrink-0 px-4 sm:px-6 py-4 sm:py-5 border-b border-border bg-card/50">
-        <div className="flex items-start justify-between gap-4 flex-wrap">
+      {/* Step Header - 優化電腦版空間使用 */}
+      <div className="flex-shrink-0 px-4 sm:px-6 py-2 sm:py-3 border-b border-border bg-card/50">
+        {/* 第一行：標題和 Badges */}
+        <div className="flex items-start justify-between gap-3 mb-2">
           <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-2 mb-2 flex-wrap">
+            <div className="flex items-center gap-2 mb-1.5 flex-wrap">
               <Badge variant="outline" className={categoryConf.color}>
                 <CategoryIcon className="w-3 h-3 mr-1" />
                 {categoryConf.label}
@@ -98,61 +99,74 @@ function StepDetail({
                 </Badge>
               )}
             </div>
-            <h1 className="text-xl sm:text-2xl font-bold text-foreground mb-2">
+            <h1 className="text-lg sm:text-xl font-bold text-foreground mb-1">
               {step.title}
             </h1>
-            <p className="text-muted-foreground text-sm sm:text-base">{step.purpose}</p>
+            <p className="text-muted-foreground text-xs sm:text-sm line-clamp-2">{step.purpose}</p>
           </div>
         </div>
 
-        {/* Tone Selector - Debug Flow */}
-        <div className="mt-4 p-1 bg-secondary rounded-lg inline-flex">
-          {(Object.keys(toneConfig) as PromptTone[]).map((t, index) => {
-            const { icon: Icon, label, description } = toneConfig[t];
-            const isActive = tone === t;
-            return (
-              <button
-                key={t}
-                onClick={() => onToneChange(t)}
-                className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-all ${
-                  isActive
-                    ? "bg-background shadow-sm text-foreground"
-                    : "text-muted-foreground hover:text-foreground"
-                }`}
-              >
-                <span className={`flex items-center justify-center w-5 h-5 rounded-full text-xs font-bold ${
-                  isActive ? "bg-primary text-primary-foreground" : "bg-muted"
-                }`}>
-                  {index + 1}
-                </span>
-                <Icon className="w-4 h-4" />
-                <span className="hidden sm:inline">{label}</span>
-              </button>
-            );
-          })}
+        {/* 第二行：Tone Selector 和 目前模式（電腦版同行顯示） */}
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mt-2">
+          <div className="p-1 bg-secondary rounded-lg inline-flex">
+            {(Object.keys(toneConfig) as PromptTone[]).map((t, index) => {
+              const { icon: Icon, label, description } = toneConfig[t];
+              const isActive = tone === t;
+              return (
+                <button
+                  key={t}
+                  onClick={() => onToneChange(t)}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs sm:text-sm font-medium transition-all ${
+                    isActive
+                      ? "bg-background shadow-sm text-foreground"
+                      : "text-muted-foreground hover:text-foreground"
+                  }`}
+                >
+                  <span className={`flex items-center justify-center w-4 h-4 rounded-full text-xs font-bold ${
+                    isActive ? "bg-primary text-primary-foreground" : "bg-muted"
+                  }`}>
+                    {index + 1}
+                  </span>
+                  <Icon className="w-3.5 h-3.5" />
+                  <span className="hidden sm:inline">{label}</span>
+                </button>
+              );
+            })}
+          </div>
+          {/* 目前模式 - 電腦版顯示在 Tone Selector 右側 */}
+          <div className="flex items-center gap-3 flex-wrap">
+            <span className="text-xs text-muted-foreground hidden lg:inline">
+              模式: <span className="text-primary font-medium">{toneConfig[tone].description}</span>
+            </span>
+            {/* 關鍵字 - 緊湊顯示 */}
+            <div className="flex items-center gap-1.5 flex-wrap">
+              <span className="text-xs text-muted-foreground hidden sm:inline">關鍵字:</span>
+              <div className="flex flex-wrap gap-1">
+                {step.keywords.slice(0, 4).map((keyword) => (
+                  <Badge key={keyword} variant="secondary" className="font-mono text-[10px] sm:text-xs px-1.5 py-0.5">
+                    {keyword}
+                  </Badge>
+                ))}
+                {step.keywords.length > 4 && (
+                  <Badge variant="secondary" className="font-mono text-[10px] sm:text-xs px-1.5 py-0.5 text-muted-foreground">
+                    +{step.keywords.length - 4}
+                  </Badge>
+                )}
+              </div>
+            </div>
+          </div>
         </div>
-        <p className="text-xs text-muted-foreground mt-2">
+        {/* 目前模式 - 手機版單獨顯示 */}
+        <p className="text-xs text-muted-foreground mt-1.5 sm:hidden">
           目前模式: <span className="text-primary">{toneConfig[tone].description}</span>
         </p>
-
-        {/* Keywords */}
-        <div className="flex items-center gap-2 mt-4 flex-wrap">
-          <span className="text-xs text-muted-foreground">關鍵字:</span>
-          <div className="flex flex-wrap gap-1">
-            {step.keywords.map((keyword) => (
-              <Badge key={keyword} variant="secondary" className="font-mono text-xs">
-                {keyword}
-              </Badge>
-            ))}
-          </div>
-        </div>
       </div>
 
       {/* Step Content */}
-      <div className="flex-1 overflow-y-auto scrollbar-thin p-4 sm:p-6 space-y-6 min-h-0">
+      <div className="flex-1 overflow-y-auto scrollbar-thin p-4 sm:p-5 space-y-4 min-h-0 overscroll-contain">
         {/* Checklist Section */}
-        <section className="bg-card rounded-lg border border-border p-4">
-          <h2 className="text-base font-semibold text-foreground mb-3 flex items-center gap-2">
+        <section className="bg-card rounded-lg border border-border p-3 sm:p-4">
+          <h2 className="text-sm sm:text-base font-semibold text-foreground mb-2.5 flex items-center gap-2">
             <span className="w-1.5 h-5 bg-primary rounded-full" />
             排查清單
             <span className="text-xs text-muted-foreground font-normal">
@@ -162,9 +176,9 @@ function StepDetail({
           <Checklist items={checklist} onToggle={onChecklistToggle} />
         </section>
 
-        {/* Prompts Section */}
+        {/* Prompts Section - 核心內容區域 */}
         <section>
-          <h2 className="text-base font-semibold text-foreground mb-4 flex items-center gap-2">
+          <h2 className="text-sm sm:text-base font-semibold text-foreground mb-3 flex items-center gap-2">
             <span className="w-1.5 h-5 bg-accent rounded-full" />
             {tone === "diagnostic" ? "診斷指令" : tone === "fix" ? "修正方案" : "驗證步驟"}
             <span className="text-xs text-muted-foreground font-normal">
@@ -185,7 +199,7 @@ function StepDetail({
       </div>
 
       {/* Navigation Footer */}
-      <div className="flex-shrink-0 px-4 sm:px-6 py-3 sm:py-4 border-t border-border bg-card/50">
+      <div className="flex-shrink-0 px-4 sm:px-6 py-2 sm:py-3 border-t border-border bg-card/50">
         <div className="flex items-center justify-between gap-2">
           <Button
             variant="outline"

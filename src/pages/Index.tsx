@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, lazy, Suspense } from "react";
-import { motion } from "framer-motion";
-import { Menu, X } from "lucide-react";
+import { motion, AnimatePresence } from "framer-motion";
+import { Menu, X, ChevronUp, ChevronDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Header } from "@/components/Header";
 import { StepSidebar } from "@/components/StepSidebar";
@@ -27,6 +27,7 @@ const Index = () => {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isDesktopSidebarCollapsed, setIsDesktopSidebarCollapsed] = useState(false);
   const [isDarkMode, setIsDarkMode] = useState(true);
+  const [isMobileHeaderCollapsed, setIsMobileHeaderCollapsed] = useState(false);
 
   // 從 localStorage 載入變數，或使用預設值
   const loadVariables = (): Record<string, string> => {
@@ -74,6 +75,11 @@ const Index = () => {
   // Close sidebar on step change (mobile)
   useEffect(() => {
     setIsSidebarOpen(false);
+  }, [currentStep]);
+
+  // 當切換步驟時，自動展開標題列（手機/平板）
+  useEffect(() => {
+    setIsMobileHeaderCollapsed(false);
   }, [currentStep]);
 
   // Get current step data
@@ -165,35 +171,75 @@ const Index = () => {
   if (!currentStepData) return null;
 
   return (
-    <div className="h-screen md:h-screen flex flex-col bg-background overflow-hidden md:overflow-hidden">
-      {/* Header */}
-      <Header
-        steps={stepsData}
-        completedSteps={completedSteps}
-        onSelectStep={handleStepClick}
-        onOpenSettings={() => setIsSettingsOpen(true)}
-        isDarkMode={isDarkMode}
-        onToggleDarkMode={() => setIsDarkMode(!isDarkMode)}
-      />
+    <div className="h-screen flex flex-col bg-background overflow-hidden">
+      {/* Header - 手機/平板可收合 */}
+      <AnimatePresence>
+        {!isMobileHeaderCollapsed && (
+          <motion.div
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: "auto", opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            transition={{ duration: 0.2 }}
+            className="overflow-hidden"
+          >
+            <Header
+              steps={stepsData}
+              completedSteps={completedSteps}
+              onSelectStep={handleStepClick}
+              onOpenSettings={() => setIsSettingsOpen(true)}
+              isDarkMode={isDarkMode}
+              onToggleDarkMode={() => setIsDarkMode(!isDarkMode)}
+            />
+          </motion.div>
+        )}
+      </AnimatePresence>
 
-      {/* Mobile Sidebar Toggle */}
-      <div className="md:hidden flex items-center gap-2 px-4 py-2 border-b border-border bg-card/50 flex-shrink-0">
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={() => setIsSidebarOpen(!isSidebarOpen)}
-          className="gap-2"
-        >
-          {isSidebarOpen ? <X className="w-4 h-4" /> : <Menu className="w-4 h-4" />}
-          問題清單
-        </Button>
-        <span className="text-sm text-muted-foreground">
-          {currentStepData.shortTitle}
-        </span>
-      </div>
+      {/* Mobile Sidebar Toggle - 手機/平板可收合 */}
+      <AnimatePresence>
+        {!isMobileHeaderCollapsed && (
+          <motion.div
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: "auto", opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            transition={{ duration: 0.2 }}
+            className="lg:hidden overflow-hidden border-b border-border bg-card/50 flex-shrink-0"
+          >
+            <div className="flex items-center gap-2 px-4 py-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setIsSidebarOpen(!isSidebarOpen)}
+                className="gap-2"
+              >
+                {isSidebarOpen ? <X className="w-4 h-4" /> : <Menu className="w-4 h-4" />}
+                問題清單
+              </Button>
+              <span className="text-sm text-muted-foreground">
+                {currentStepData.shortTitle}
+              </span>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* 浮動收合按鈕 - 僅手機/平板顯示 */}
+      <motion.button
+        initial={{ opacity: 0, scale: 0.8 }}
+        animate={{ opacity: 1, scale: 1 }}
+        whileTap={{ scale: 0.9 }}
+        onClick={() => setIsMobileHeaderCollapsed(!isMobileHeaderCollapsed)}
+        className="lg:hidden fixed top-3 right-3 z-50 p-2.5 rounded-full bg-primary text-primary-foreground shadow-lg hover:shadow-xl transition-all active:scale-95"
+        aria-label={isMobileHeaderCollapsed ? "展開標題列" : "收合標題列"}
+      >
+        {isMobileHeaderCollapsed ? (
+          <ChevronDown className="w-5 h-5" />
+        ) : (
+          <ChevronUp className="w-5 h-5" />
+        )}
+      </motion.button>
 
       {/* Main Content */}
-      <div className="flex-1 flex overflow-hidden md:overflow-hidden relative min-h-0">
+      <div className="flex-1 flex overflow-hidden relative min-h-0">
         {/* Sidebar - Desktop */}
         {!isDesktopSidebarCollapsed && (
           <motion.aside
