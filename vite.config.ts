@@ -4,9 +4,15 @@ import path from "path";
 import { componentTagger } from "lovable-tagger";
 
 // https://vitejs.dev/config/
-export default defineConfig(({ mode }) => ({
-  // Cloudflare Pages 使用根路徑，GitHub Pages 使用子路徑
-  base: process.env.CF_PAGES ? '/' : (process.env.NODE_ENV === 'production' ? '/Ddbug-Runbook/' : '/'),
+export default defineConfig(({ mode }) => {
+  // 判斷部署環境
+  // Cloudflare Pages 會設定 CF_PAGES 環境變數，使用根路徑
+  // GitHub Pages 使用子路徑
+  const isCloudflarePages = process.env.CF_PAGES || process.env.CF_PAGES_BRANCH;
+  const base = isCloudflarePages ? '/' : (process.env.NODE_ENV === 'production' ? '/Ddbug-Runbook/' : '/');
+  
+  return {
+    base,
   server: {
     host: "::",
     port: 8080,
@@ -26,4 +32,5 @@ export default defineConfig(({ mode }) => ({
     assetsDir: 'assets',
     sourcemap: false,
   },
-}));
+  };
+});
