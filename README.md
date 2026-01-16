@@ -1,3 +1,25 @@
+# 自動化排除系統
+
+## 🚀 快速部署（推薦）
+
+**最簡單的部署方式：使用 Cloudflare Dashboard 的 Git 整合**
+
+👉 **請參考 [QUICK_DEPLOY.md](./QUICK_DEPLOY.md) 進行設定**
+
+**優點：**
+- ✅ 不需要設定 GitHub Secrets
+- ✅ 不需要設定 GitHub Actions
+- ✅ 設定一次，之後自動部署
+
+**快速步驟：**
+1. 前往 [Cloudflare Dashboard](https://dash.cloudflare.com)
+2. Workers & Pages > Create application > Pages > Connect to Git
+3. 選擇倉庫：`sky770825/Ddbug-Runbook`
+4. 設定建置命令：`npm ci && CF_PAGES=1 npm run build`
+5. 完成！
+
+---
+
 # Welcome to your Lovable project
 
 ## Project info
