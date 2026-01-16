@@ -9,7 +9,15 @@ import { stepsData, type PromptTone, type ChecklistItem } from "@/data/stepsData
 import { defaultVariables } from "@/lib/variableConfig";
 
 // 動態載入步驟組件以優化初始載入
-const StepDetail = lazy(() => import("@/components/StepDetail").then(module => ({ default: module.StepDetail })));
+const StepDetail = lazy(() => 
+  import("@/components/StepDetail").then(module => ({ 
+    default: module.StepDetail 
+  })).catch(error => {
+    console.error("Failed to load StepDetail:", error);
+    // 返回一個錯誤組件作為 fallback
+    return { default: () => <div className="p-4 text-destructive">載入組件時發生錯誤</div> };
+  })
+);
 
 const Index = () => {
   const [currentStep, setCurrentStep] = useState(1);

@@ -41,7 +41,7 @@ const categoryConfig: Record<Step['category'], { icon: typeof Database; label: s
   deployment: { icon: Rocket, label: "部署問題", color: "bg-teal-500/10 text-teal-500 border-teal-500/20" },
 };
 
-export function StepDetail({
+function StepDetail({
   step,
   checklist,
   tone,
@@ -225,3 +225,7 @@ export function StepDetail({
     </motion.div>
   );
 }
+
+// 同時提供命名導出和默認導出以支持不同的導入方式
+export { StepDetail };
+export default StepDetail;
