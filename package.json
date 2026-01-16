@@ -10,7 +10,8 @@
     "lint": "eslint .",
     "preview": "vite preview",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "deploy:cf": "npm run build && wrangler pages deploy dist --project-name=ddbug-runbook"
   },
   "dependencies": {
     "@fontsource/inter": "^5.2.8",
@@ -87,6 +88,7 @@
     "typescript": "^5.8.3",
     "typescript-eslint": "^8.38.0",
     "vite": "^5.4.19",
-    "vitest": "^3.2.4"
+    "vitest": "^3.2.4",
+    "wrangler": "^4.59.2"
   }
 }
