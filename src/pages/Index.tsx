@@ -1,13 +1,15 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, lazy, Suspense } from "react";
 import { motion } from "framer-motion";
 import { Menu, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Header } from "@/components/Header";
 import { StepSidebar } from "@/components/StepSidebar";
-import { StepDetail } from "@/components/StepDetail";
 import { ProjectSettingsDrawer } from "@/components/ProjectSettingsDrawer";
-import { stepsData, type PromptTone, type ChecklistItem } from "@/data/stepsData";
+import type { PromptTone, ChecklistItem, Step } from "@/data/stepsData";
 import { defaultVariables } from "@/lib/variableConfig";
+
+// 動態載入步驟資料和組件以優化初始載入
+const StepDetail = lazy(() => import("@/components/StepDetail").then(module => ({ default: module.StepDetail })));
 
 const Index = () => {
   const [currentStep, setCurrentStep] = useState(1);
@@ -17,6 +19,17 @@ const Index = () => {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isDesktopSidebarCollapsed, setIsDesktopSidebarCollapsed] = useState(false);
   const [isDarkMode, setIsDarkMode] = useState(true);
+  const [stepsData, setStepsData] = useState<Step[]>([]);
+  const [isLoadingSteps, setIsLoadingSteps] = useState(true);
+
+  // 動態載入步驟資料
+  useEffect(() => {
+    import("@/data/stepsData").then((module) => {
+      setStepsData(module.stepsData);
+      setIsLoadingSteps(false);
+    });
+  }, []);
+
   // 從 localStorage 載入變數，或使用預設值
   const loadVariables = (): Record<string, string> => {
     try {
@@ -27,7 +40,10 @@ const Index = () => {
         return { ...defaultVariables, ...parsed };
       }
     } catch (error) {
-      console.error("Failed to load variables from localStorage:", error);
+      // 只在開發環境顯示錯誤
+      if (import.meta.env.DEV) {
+        console.error("Failed to load variables from localStorage:", error);
+      }
     }
     return defaultVariables;
   };
@@ -35,13 +51,18 @@ const Index = () => {
   const [variables, setVariables] = useState<Record<string, string>>(loadVariables);
 
   // Initialize checklist state for all steps
-  const [checklists, setChecklists] = useState<Record<number, ChecklistItem[]>>(() => {
-    const initial: Record<number, ChecklistItem[]> = {};
-    stepsData.forEach((step) => {
-      initial[step.id] = step.checklist.map((item) => ({ ...item }));
-    });
-    return initial;
-  });
+  const [checklists, setChecklists] = useState<Record<number, ChecklistItem[]>>({});
+  
+  // 當 stepsData 載入完成後，初始化 checklists
+  useEffect(() => {
+    if (stepsData.length > 0) {
+      const initial: Record<number, ChecklistItem[]> = {};
+      stepsData.forEach((step) => {
+        initial[step.id] = step.checklist.map((item) => ({ ...item }));
+      });
+      setChecklists(initial);
+    }
+  }, [stepsData]);
 
   // Set document title
   useEffect(() => {
@@ -134,7 +155,10 @@ const Index = () => {
       try {
         localStorage.setItem("prompt-variables", JSON.stringify(updated));
       } catch (error) {
-        console.error("Failed to save variables to localStorage:", error);
+        // 只在開發環境顯示錯誤
+        if (import.meta.env.DEV) {
+          console.error("Failed to save variables to localStorage:", error);
+        }
       }
       return updated;
     });
@@ -144,6 +168,18 @@ const Index = () => {
   const hasPrev = currentIndex > 0;
   const hasNext = currentIndex < stepsData.length - 1;
   const isCompleted = completedSteps.includes(currentStep);
+
+  // 載入中狀態
+  if (isLoadingSteps || stepsData.length === 0) {
+    return (
+      <div className="h-screen flex items-center justify-center bg-background">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
+          <p className="text-muted-foreground">載入中...</p>
+        </div>
+      </div>
+    );
+  }
 
   if (!currentStepData) return null;
 
@@ -239,20 +275,29 @@ const Index = () => {
 
         {/* Step Detail */}
         <main className="flex-1 overflow-hidden">
-          <StepDetail
-            step={currentStepData}
-            checklist={currentChecklist}
-            tone={tone}
-            onToneChange={setTone}
-            onChecklistToggle={handleChecklistToggle}
-            onPrevStep={handlePrevStep}
-            onNextStep={handleNextStep}
-            onCompleteStep={handleCompleteStep}
-            hasPrev={hasPrev}
-            hasNext={hasNext}
-            isCompleted={isCompleted}
-            variables={variables}
-          />
+          <Suspense fallback={
+            <div className="flex items-center justify-center h-full">
+              <div className="text-center">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-2"></div>
+                <p className="text-sm text-muted-foreground">載入中...</p>
+              </div>
+            </div>
+          }>
+            <StepDetail
+              step={currentStepData}
+              checklist={currentChecklist}
+              tone={tone}
+              onToneChange={setTone}
+              onChecklistToggle={handleChecklistToggle}
+              onPrevStep={handlePrevStep}
+              onNextStep={handleNextStep}
+              onCompleteStep={handleCompleteStep}
+              hasPrev={hasPrev}
+              hasNext={hasNext}
+              isCompleted={isCompleted}
+              variables={variables}
+            />
+          </Suspense>
         </main>
       </div>
 

@@ -31,6 +31,36 @@ export default defineConfig(({ mode }) => {
     outDir: 'dist',
     assetsDir: 'assets',
     sourcemap: false,
+    // 生產環境移除 console 語句
+    minify: 'esbuild',
+    // 手動分割 bundle 以優化快取和載入效能
+    rollupOptions: {
+      output: {
+        manualChunks: (id) => {
+          // 將 node_modules 中的第三方庫分離
+          if (id.includes('node_modules')) {
+            // React 核心庫
+            if (id.includes('react') || id.includes('react-dom') || id.includes('react-router')) {
+              return 'vendor-react';
+            }
+            // UI 庫 (Radix UI)
+            if (id.includes('@radix-ui')) {
+              return 'vendor-ui';
+            }
+            // 動畫和工具庫
+            if (id.includes('framer-motion') || id.includes('@tanstack/react-query') || id.includes('zod')) {
+              return 'vendor-utils';
+            }
+            // 其他第三方庫
+            return 'vendor-other';
+          }
+          // 將大型資料檔案分離
+          if (id.includes('stepsData')) {
+            return 'data-steps';
+          }
+        },
+      },
+    },
   },
   // public 目錄中的檔案會自動複製到 dist
   publicDir: 'public',
