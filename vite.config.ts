@@ -39,16 +39,19 @@ export default defineConfig(({ mode }) => {
         manualChunks: (id) => {
           // 將 node_modules 中的第三方庫分離
           if (id.includes('node_modules')) {
-            // React 核心庫
-            if (id.includes('react') || id.includes('react-dom') || id.includes('react-router')) {
+            // React 核心庫和所有依賴 React 的庫 - 必須一起載入
+            if (
+              id.includes('react') || 
+              id.includes('react-dom') || 
+              id.includes('react-router') ||
+              id.includes('@radix-ui') ||
+              id.includes('@tanstack/react-query') ||
+              id.includes('framer-motion')
+            ) {
               return 'vendor-react';
             }
-            // UI 庫 (Radix UI)
-            if (id.includes('@radix-ui')) {
-              return 'vendor-ui';
-            }
-            // 動畫和工具庫
-            if (id.includes('framer-motion') || id.includes('@tanstack/react-query') || id.includes('zod')) {
+            // 其他工具庫（不依賴 React）
+            if (id.includes('zod') || id.includes('lucide-react')) {
               return 'vendor-utils';
             }
             // 其他第三方庫
