@@ -2,11 +2,11 @@ name = "ddbug-runbook"
 compatibility_date = "2024-01-15"
 pages_build_output_dir = "dist"
 
-# Cloudflare Pages 建置配置
-[build]
-command = "npm ci && CF_PAGES=1 npm run build"
-cwd = "."
-
-[build.environment_variables]
-CF_PAGES = "1"
-NODE_ENV = "production"
+# 注意：Cloudflare Pages 的 wrangler.toml 不支援 [build] 區塊
+# 建置命令需要在 Cloudflare Dashboard 中設定：
+# Build command: npm ci && CF_PAGES=1 npm run build
+# Build output directory: dist
+# Node.js version: 20
+# Environment variables:
+#   - CF_PAGES = 1
+#   - NODE_ENV = production
