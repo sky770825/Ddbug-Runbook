@@ -28,6 +28,7 @@ jobs:
         env:
           NODE_ENV: production
           CF_PAGES: '1'
+          # 確保使用正確的 base path 用於 Cloudflare Pages
 
       - name: Deploy to Cloudflare Pages
         uses: cloudflare/pages-action@v1
