@@ -4125,6 +4125,425 @@ function processLargeArray(array: any[], chunkSize = 100) {
         }
       }
     ]
+  },
+  // ===== 部署問題 =====
+  {
+    id: 19,
+    title: "Cloudflare Pages 部署問題",
+    shortTitle: "部署問題",
+    purpose: "解決 Cloudflare Pages 部署失敗、建置錯誤、環境變數設定、套件管理器衝突等部署相關問題。",
+    badge: "common",
+    category: "deployment",
+    keywords: ["cloudflare", "pages", "deploy", "build", "npm", "bun", "error", "522", "accountId"],
+    checklist: [
+      { id: "19-1", label: "檢查建置命令是否正確", completed: false },
+      { id: "19-2", label: "確認套件管理器設定（npm vs bun）", completed: false },
+      { id: "19-3", label: "驗證環境變數設定", completed: false },
+      { id: "19-4", label: "檢查建置輸出目錄", completed: false },
+      { id: "19-5", label: "確認 Node.js 版本", completed: false },
+    ],
+    prompts: [
+      {
+        id: "p19-1",
+        title: "1. 建置命令錯誤診斷",
+        description: "診斷建置命令是否正確執行，檢查 dist 目錄是否產生",
+        keywords: ["build", "command", "dist", "output"],
+        prompts: {
+          diagnostic: `【Cursor 自動化指令】診斷 Cloudflare Pages 建置命令問題
+
+檢查建置日誌中的錯誤訊息：
+
+1. 如果看到 "Executing user command: CF_PAGES=1" 但沒有建置輸出：
+   → 問題：建置命令只設定了環境變數，沒有執行實際建置
+   → 解決：建置命令必須包含 "npm run build"
+
+2. 如果看到 "Error: Output directory 'dist' not found"：
+   → 問題：建置沒有執行或失敗，dist 目錄未產生
+   → 檢查：建置日誌中是否有錯誤訊息
+
+3. 檢查建置命令設定：
+   - 前往 Cloudflare Dashboard > Settings > Builds & deployments
+   - 確認 Build command 是否為：npm ci && CF_PAGES=1 npm run build
+   - 確認 Build output directory 是否為：dist
+
+4. 驗證本地建置：
+   CF_PAGES=1 npm run build
+   ls -la dist/  # 確認 dist 目錄存在`,
+          fix: `【Cursor 自動化指令】修復 Cloudflare Pages 建置命令
+
+在 Cloudflare Dashboard 中設定正確的建置命令：
+
+1. 前往：https://dash.cloudflare.com
+   Workers & Pages > 您的專案 > Settings > Builds & deployments
+
+2. 設定建置命令（兩種方式）：
+
+   方式 A - 單一建置命令（推薦）：
+   Build command: npm ci && CF_PAGES=1 npm run build
+   
+   方式 B - 分開設定：
+   Install command: npm ci
+   Build command: CF_PAGES=1 npm run build
+
+3. 確認其他設定：
+   - Build output directory: dist
+   - Root directory: / (留空)
+   - Node.js version: 20
+   - Framework preset: Vite 或 None
+
+4. 環境變數（可選，因為已在建置命令中設定）：
+   - CF_PAGES = 1
+   - NODE_ENV = production
+
+5. 點擊 Save 儲存設定
+
+6. 重新部署：點擊 Retry deployment 或 Create deployment`,
+          verify: `【Cursor 自動化指令】驗證建置命令修復
+
+檢查建置日誌應該會看到：
+
+1. ✅ 安裝依賴：
+   Installing project dependencies: npm clean-install
+   added XXX packages...
+
+2. ✅ 執行建置：
+   Executing user command: npm ci && CF_PAGES=1 npm run build
+   vite v5.4.19 building for production...
+   ✓ built in X.XXs
+
+3. ✅ 找到輸出目錄：
+   Validating asset output directory
+   Success: Found output directory "dist"
+
+4. ✅ 部署成功：
+   Deployment successful
+
+如果看到以上訊息，表示建置命令已正確設定。`
+        }
+      },
+      {
+        id: "p19-2",
+        title: "2. 套件管理器衝突（npm vs bun）",
+        description: "解決 Cloudflare Pages 自動偵測錯誤套件管理器的問題",
+        keywords: ["npm", "bun", "package", "manager", "lockfile"],
+        prompts: {
+          diagnostic: `【Cursor 自動化指令】診斷套件管理器衝突
+
+檢查專案中的 lockfile 檔案：
+
+1. 檢查專案根目錄：
+   ls -la | grep -E "lock|package"
+   
+   如果同時存在：
+   - package-lock.json (npm)
+   - bun.lockb (bun)
+   
+   → 問題：Cloudflare Pages 可能自動偵測到 bun.lockb 並嘗試使用 bun install
+
+2. 檢查建置日誌：
+   如果看到 "bun install" 或 "bun.lockb" 相關錯誤：
+   → 問題：Cloudflare Pages 嘗試使用 bun 但專案使用 npm
+
+3. 檢查 package.json：
+   - 確認沒有指定 "packageManager": "bun"
+   - 確認 scripts 使用 npm 命令
+
+4. 驗證專案實際使用的套件管理器：
+   - 檢查 package-lock.json 是否存在（使用 npm）
+   - 檢查是否有 bun 相關配置`,
+          fix: `【Cursor 自動化指令】修復套件管理器衝突
+
+解決方案 1：刪除不需要的 bun.lockb（如果專案使用 npm）
+
+1. 確認專案使用 npm：
+   - 檢查 package-lock.json 是否存在
+   - 檢查 package.json 中的 scripts 是否使用 npm
+
+2. 刪除 bun.lockb：
+   rm bun.lockb
+   git add bun.lockb
+   git commit -m "Remove bun.lockb, project uses npm only"
+   git push origin main
+
+解決方案 2：在 Cloudflare Dashboard 中明確指定 npm
+
+1. 前往：Settings > Builds & deployments
+2. 設定 Install command: npm ci
+3. 確認 Build command 使用 npm：npm ci && CF_PAGES=1 npm run build
+4. 儲存設定
+
+解決方案 3：在 .cloudflare/pages.json 中指定
+
+{
+  "packageManager": "npm",
+  "installCommand": "npm ci",
+  "buildCommand": "npm ci && CF_PAGES=1 npm run build"
+}
+
+注意：Cloudflare Dashboard 中的設定優先級更高。`,
+          verify: `【Cursor 自動化指令】驗證套件管理器修復
+
+檢查建置日誌應該會看到：
+
+1. ✅ 使用 npm 安裝依賴：
+   Installing project dependencies: npm clean-install
+   或
+   npm ci
+   
+   而不是：
+   ❌ bun install
+
+2. ✅ 建置成功：
+   npm run build
+   ✓ built in X.XXs
+
+3. ✅ 沒有 bun 相關錯誤：
+   - 沒有 "bun.lockb" 錯誤
+   - 沒有 "bun install" 失敗
+
+如果看到以上結果，表示套件管理器問題已解決。`
+        }
+      },
+      {
+        id: "p19-3",
+        title: "3. Error 522 連線逾時",
+        description: "解決 Cloudflare Pages 部署後出現 522 錯誤的問題",
+        keywords: ["522", "timeout", "connection", "deploy", "error"],
+        prompts: {
+          diagnostic: `【Cursor 自動化指令】診斷 Error 522 問題
+
+Error 522: Connection timed out 表示 Cloudflare 無法連接到源服務器。
+
+檢查項目：
+
+1. 檢查 Cloudflare Dashboard 中的部署狀態：
+   - 前往：Workers & Pages > 您的專案 > Deployments
+   - 查看最新的部署狀態
+   - 如果顯示 "Failed" 或 "Building"，點擊查看建置日誌
+
+2. 檢查專案是否存在：
+   - 確認 Cloudflare Pages 專案已正確建立
+   - 確認 GitHub 倉庫已正確連接
+
+3. 檢查建置配置：
+   - 確認建置命令是否正確
+   - 確認建置輸出目錄是否正確
+   - 確認環境變數是否設定
+
+4. 檢查建置日誌：
+   - 查看是否有建置錯誤
+   - 查看是否有 "Output directory not found" 錯誤`,
+          fix: `【Cursor 自動化指令】修復 Error 522 問題
+
+解決步驟：
+
+1. 確認專案存在：
+   - 前往 Cloudflare Dashboard
+   - 確認 Pages 專案已建立
+   - 如果不存在，建立新專案並連接 GitHub 倉庫
+
+2. 檢查建置配置：
+   - Settings > Builds & deployments
+   - Build command: npm ci && CF_PAGES=1 npm run build
+   - Build output directory: dist
+   - Node.js version: 20
+
+3. 重新部署：
+   - 點擊 Retry deployment 或 Create deployment
+   - 選擇分支：main
+   - 等待建置完成（約 2-5 分鐘）
+
+4. 如果建置失敗：
+   - 查看建置日誌中的錯誤訊息
+   - 根據錯誤訊息修正配置
+   - 重新部署
+
+5. 如果專案不存在：
+   - Workers & Pages > Create application > Pages > Connect to Git
+   - 選擇 GitHub 倉庫
+   - 設定建置配置
+   - 點擊 Save and Deploy`,
+          verify: `【Cursor 自動化指令】驗證 Error 522 修復
+
+檢查以下項目：
+
+1. ✅ Cloudflare Dashboard：
+   - 部署狀態顯示 "Success"
+   - 建置日誌沒有錯誤
+   - 最新的部署已完成
+
+2. ✅ 網站訪問：
+   - 前往部署網址（例如：https://your-project.pages.dev）
+   - 網站可以正常訪問
+   - 沒有 522 或 404 錯誤
+
+3. ✅ 自動部署：
+   - 推送代碼到 main 分支
+   - Cloudflare 自動觸發部署
+   - 部署成功完成
+
+如果以上都正常，表示 Error 522 問題已解決。`
+        }
+      },
+      {
+        id: "p19-4",
+        title: "4. GitHub Actions 與 Cloudflare Dashboard 衝突",
+        description: "解決同時使用 GitHub Actions 和 Cloudflare Dashboard 導致的重複部署和錯誤",
+        keywords: ["github", "actions", "workflow", "secrets", "accountId", "duplicate"],
+        prompts: {
+          diagnostic: `【Cursor 自動化指令】診斷部署方式衝突
+
+檢查是否有兩種部署方式同時運作：
+
+1. 檢查 GitHub Actions：
+   - 前往：https://github.com/您的倉庫/actions
+   - 查看是否有 "Deploy to Cloudflare Pages" workflow
+   - 如果執行失敗，查看錯誤訊息
+   - 常見錯誤：Error: Input required and not supplied: accountId
+
+2. 檢查 Cloudflare Dashboard：
+   - 前往：Workers & Pages > 您的專案
+   - 查看 Deployments 標籤
+   - 確認是否有自動部署記錄
+
+3. 如果兩種方式同時運作：
+   - 每次推送會觸發兩次部署
+   - GitHub Actions 需要設定 Secrets（CLOUDFLARE_API_TOKEN, CLOUDFLARE_ACCOUNT_ID）
+   - Cloudflare Dashboard 不需要 Secrets
+
+4. 檢查 .github/workflows/ 目錄：
+   ls -la .github/workflows/
+   如果存在 cloudflare-pages.yml，表示使用 GitHub Actions`,
+          fix: `【Cursor 自動化指令】修復部署方式衝突
+
+推薦方案：使用 Cloudflare Dashboard Git 整合（更簡單）
+
+1. 禁用 GitHub Actions：
+   - 重命名或刪除 .github/workflows/cloudflare-pages.yml
+   - 或重命名為 .github/workflows/cloudflare-pages.yml.disabled
+   
+   git mv .github/workflows/cloudflare-pages.yml .github/workflows/cloudflare-pages.yml.disabled
+   git commit -m "Disable GitHub Actions, use Cloudflare Dashboard Git integration"
+   git push origin main
+
+2. 確認 Cloudflare Dashboard 設定：
+   - 前往：Settings > Builds & deployments
+   - 確認已連接 GitHub 倉庫
+   - 確認建置配置正確
+
+3. 優點：
+   - ✅ 不需要設定 GitHub Secrets
+   - ✅ 設定更簡單
+   - ✅ 避免重複部署
+   - ✅ 所有部署都在 Cloudflare Dashboard 中管理
+
+替代方案：如果必須使用 GitHub Actions
+
+1. 設定 GitHub Secrets：
+   - 前往：Settings > Secrets and variables > Actions
+   - 添加 CLOUDFLARE_API_TOKEN
+   - 添加 CLOUDFLARE_ACCOUNT_ID
+
+2. 禁用 Cloudflare Dashboard 自動部署：
+   - 在 Cloudflare Dashboard 中斷開 GitHub 連接
+   - 或設定為手動部署`,
+          verify: `【Cursor 自動化指令】驗證部署方式修復
+
+檢查結果：
+
+1. ✅ 只有一種部署方式運作：
+   - 如果使用 Cloudflare Dashboard：GitHub Actions 不執行
+   - 如果使用 GitHub Actions：Cloudflare Dashboard 不自動部署
+
+2. ✅ 推送代碼後：
+   - 只觸發一次部署
+   - 部署成功完成
+   - 沒有重複部署
+
+3. ✅ 沒有錯誤：
+   - GitHub Actions 不會出現 accountId 錯誤
+   - Cloudflare Dashboard 部署正常
+
+4. ✅ 部署管理：
+   - 所有部署記錄在一個地方管理
+   - 建置日誌清晰明確
+
+如果以上都正常，表示部署方式衝突已解決。`
+        }
+      },
+      {
+        id: "p19-5",
+        title: "5. 環境變數與 Base Path 設定",
+        description: "確保 Cloudflare Pages 使用正確的 base path 和環境變數",
+        keywords: ["base", "path", "CF_PAGES", "environment", "variable"],
+        prompts: {
+          diagnostic: `【Cursor 自動化指令】診斷環境變數與 Base Path 問題
+
+檢查項目：
+
+1. 檢查建置日誌中的環境變數：
+   - 確認 CF_PAGES=1 是否已設定
+   - 確認 NODE_ENV=production 是否已設定
+
+2. 檢查建置輸出的資源路徑：
+   - 查看 dist/index.html 中的資源路徑
+   - 應該使用 /assets/ 而不是 /Ddbug-Runbook/assets/
+   - 如果路徑錯誤，表示 base path 設定不正確
+
+3. 檢查 vite.config.ts：
+   - 確認有偵測 CF_PAGES 環境變數
+   - 確認 base path 設定正確
+
+4. 檢查 Cloudflare Dashboard 設定：
+   - Settings > Builds & deployments > Environment variables
+   - 確認 CF_PAGES=1 已設定`,
+          fix: `【Cursor 自動化指令】修復環境變數與 Base Path
+
+1. 在 Cloudflare Dashboard 中設定環境變數：
+   - Settings > Builds & deployments > Environment variables
+   - 添加：CF_PAGES = 1
+   - 添加：NODE_ENV = production
+
+2. 確認建置命令包含環境變數：
+   Build command: npm ci && CF_PAGES=1 npm run build
+   
+   這樣可以確保建置時使用正確的 base path
+
+3. 驗證 vite.config.ts 配置：
+   // 應該有類似這樣的配置
+   const isCloudflarePages = process.env.CF_PAGES || process.env.CF_PAGES_BRANCH;
+   const base = isCloudflarePages ? '/' : (process.env.NODE_ENV === 'production' ? '/Ddbug-Runbook/' : '/');
+
+4. 本地測試建置：
+   CF_PAGES=1 npm run build
+   cat dist/index.html | grep -E "src=|href="
+   # 應該看到 /assets/ 而不是 /Ddbug-Runbook/assets/`,
+          verify: `【Cursor 自動化指令】驗證環境變數與 Base Path 修復
+
+檢查結果：
+
+1. ✅ 建置日誌顯示：
+   Executing user command: npm ci && CF_PAGES=1 npm run build
+   CF_PAGES=1 已設定
+
+2. ✅ 建置輸出的資源路徑正確：
+   <script src="/assets/index-XXX.js"></script>
+   <link href="/assets/index-XXX.css">
+   使用 /assets/ 而不是 /Ddbug-Runbook/assets/
+
+3. ✅ 網站可以正常訪問：
+   - 所有資源正確載入
+   - 沒有 404 錯誤
+   - 路由功能正常
+
+4. ✅ 環境變數生效：
+   - Cloudflare Pages 使用根路徑 /
+   - GitHub Pages 使用子路徑 /Ddbug-Runbook/
+
+如果以上都正常，表示環境變數與 Base Path 設定正確。`
+        }
+      }
+    ]
   }
 ];
 
