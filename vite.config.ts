@@ -46,13 +46,28 @@ export default defineConfig(({ mode }) => {
               id.includes('react-router') ||
               id.includes('@radix-ui') ||
               id.includes('@tanstack/react-query') ||
-              id.includes('framer-motion')
+              id.includes('framer-motion') ||
+              id.includes('react-hook-form') ||
+              id.includes('react-day-picker') ||
+              id.includes('react-resizable-panels') ||
+              id.includes('recharts') ||
+              id.includes('sonner') ||
+              id.includes('embla-carousel-react') ||
+              id.includes('next-themes') ||
+              id.includes('vaul') ||
+              id.includes('cmdk') ||
+              id.includes('input-otp') ||
+              id.includes('@hookform')
             ) {
               return 'vendor-react';
             }
             // 其他工具庫（不依賴 React）
-            if (id.includes('zod') || id.includes('lucide-react')) {
+            if (id.includes('zod') || id.includes('lucide-react') || id.includes('clsx') || id.includes('tailwind-merge') || id.includes('class-variance-authority')) {
               return 'vendor-utils';
+            }
+            // 其他第三方庫（字體、日期等）
+            if (id.includes('@fontsource') || id.includes('date-fns')) {
+              return 'vendor-other';
             }
             // 其他第三方庫
             return 'vendor-other';
