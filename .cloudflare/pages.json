@@ -5,6 +5,7 @@
   "framework": "vite",
   "nodeVersion": "20",
   "installCommand": "npm ci",
+  "packageManager": "npm",
   "environmentVariables": {
     "CF_PAGES": "1",
     "NODE_ENV": "production"
