@@ -5,10 +5,10 @@ import { Button } from "@/components/ui/button";
 import { Header } from "@/components/Header";
 import { StepSidebar } from "@/components/StepSidebar";
 import { ProjectSettingsDrawer } from "@/components/ProjectSettingsDrawer";
-import type { PromptTone, ChecklistItem, Step } from "@/data/stepsData";
+import { stepsData, type PromptTone, type ChecklistItem } from "@/data/stepsData";
 import { defaultVariables } from "@/lib/variableConfig";
 
-// 動態載入步驟資料和組件以優化初始載入
+// 動態載入步驟組件以優化初始載入
 const StepDetail = lazy(() => import("@/components/StepDetail").then(module => ({ default: module.StepDetail })));
 
 const Index = () => {
@@ -19,16 +19,6 @@ const Index = () => {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isDesktopSidebarCollapsed, setIsDesktopSidebarCollapsed] = useState(false);
   const [isDarkMode, setIsDarkMode] = useState(true);
-  const [stepsData, setStepsData] = useState<Step[]>([]);
-  const [isLoadingSteps, setIsLoadingSteps] = useState(true);
-
-  // 動態載入步驟資料
-  useEffect(() => {
-    import("@/data/stepsData").then((module) => {
-      setStepsData(module.stepsData);
-      setIsLoadingSteps(false);
-    });
-  }, []);
 
   // 從 localStorage 載入變數，或使用預設值
   const loadVariables = (): Record<string, string> => {
@@ -51,18 +41,13 @@ const Index = () => {
   const [variables, setVariables] = useState<Record<string, string>>(loadVariables);
 
   // Initialize checklist state for all steps
-  const [checklists, setChecklists] = useState<Record<number, ChecklistItem[]>>({});
-  
-  // 當 stepsData 載入完成後，初始化 checklists
-  useEffect(() => {
-    if (stepsData.length > 0) {
-      const initial: Record<number, ChecklistItem[]> = {};
-      stepsData.forEach((step) => {
-        initial[step.id] = step.checklist.map((item) => ({ ...item }));
-      });
-      setChecklists(initial);
-    }
-  }, [stepsData]);
+  const [checklists, setChecklists] = useState<Record<number, ChecklistItem[]>>(() => {
+    const initial: Record<number, ChecklistItem[]> = {};
+    stepsData.forEach((step) => {
+      initial[step.id] = step.checklist.map((item) => ({ ...item }));
+    });
+    return initial;
+  });
 
   // Set document title
   useEffect(() => {
@@ -100,7 +85,7 @@ const Index = () => {
       setCurrentStep(stepsData[currentIndex - 1].id);
       setTone("diagnostic");
     }
-  }, [currentStep]);
+  }, [currentStep, stepsData]);
 
   const handleNextStep = useCallback(() => {
     const currentIndex = stepsData.findIndex((s) => s.id === currentStep);
@@ -108,7 +93,7 @@ const Index = () => {
       setCurrentStep(stepsData[currentIndex + 1].id);
       setTone("diagnostic");
     }
-  }, [currentStep]);
+  }, [currentStep, stepsData]);
 
   const handleCompleteStep = useCallback(() => {
     if (!completedSteps.includes(currentStep)) {
@@ -168,18 +153,6 @@ const Index = () => {
   const hasPrev = currentIndex > 0;
   const hasNext = currentIndex < stepsData.length - 1;
   const isCompleted = completedSteps.includes(currentStep);
-
-  // 載入中狀態
-  if (isLoadingSteps || stepsData.length === 0) {
-    return (
-      <div className="h-screen flex items-center justify-center bg-background">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
-          <p className="text-muted-foreground">載入中...</p>
-        </div>
-      </div>
-    );
-  }
 
   if (!currentStepData) return null;
 
