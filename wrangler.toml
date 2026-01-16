@@ -1,3 +1,12 @@
 name = "ddbug-runbook"
 compatibility_date = "2024-01-15"
 pages_build_output_dir = "dist"
+
+# Cloudflare Pages 建置配置
+[build]
+command = "npm ci && CF_PAGES=1 npm run build"
+cwd = "."
+
+[build.environment_variables]
+CF_PAGES = "1"
+NODE_ENV = "production"
