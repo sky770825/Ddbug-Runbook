@@ -43,6 +43,11 @@ const Index = () => {
     return initial;
   });
 
+  // Set document title
+  useEffect(() => {
+    document.title = "Debug Runbook - 問題排查指南";
+  }, []);
+
   // Handle dark mode
   useEffect(() => {
     if (isDarkMode) {
