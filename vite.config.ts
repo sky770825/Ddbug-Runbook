@@ -5,7 +5,8 @@ import { componentTagger } from "lovable-tagger";
 
 // https://vitejs.dev/config/
 export default defineConfig(({ mode }) => ({
-  base: process.env.NODE_ENV === 'production' ? '/Ddbug-Runbook/' : '/',
+  // Cloudflare Pages 使用根路徑，GitHub Pages 使用子路徑
+  base: process.env.CF_PAGES ? '/' : (process.env.NODE_ENV === 'production' ? '/Ddbug-Runbook/' : '/'),
   server: {
     host: "::",
     port: 8080,
@@ -18,5 +19,11 @@ export default defineConfig(({ mode }) => ({
     alias: {
       "@": path.resolve(__dirname, "./src"),
     },
+  },
+  build: {
+    // 確保建置輸出正確
+    outDir: 'dist',
+    assetsDir: 'assets',
+    sourcemap: false,
   },
 }));
