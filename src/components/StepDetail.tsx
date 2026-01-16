@@ -78,10 +78,10 @@ function StepDetail({
       initial={{ opacity: 0, x: 20 }}
       animate={{ opacity: 1, x: 0 }}
       exit={{ opacity: 0, x: -20 }}
-      className="h-full flex flex-col"
+      className="h-full flex flex-col min-h-0"
     >
       {/* Step Header */}
-      <div className="flex-shrink-0 px-6 py-5 border-b border-border bg-card/50">
+      <div className="flex-shrink-0 px-4 sm:px-6 py-4 sm:py-5 border-b border-border bg-card/50">
         <div className="flex items-start justify-between gap-4 flex-wrap">
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2 mb-2 flex-wrap">
@@ -149,7 +149,7 @@ function StepDetail({
       </div>
 
       {/* Step Content */}
-      <div className="flex-1 overflow-y-auto scrollbar-thin p-4 sm:p-6 space-y-6">
+      <div className="flex-1 overflow-y-auto scrollbar-thin p-4 sm:p-6 space-y-6 min-h-0">
         {/* Checklist Section */}
         <section className="bg-card rounded-lg border border-border p-4">
           <h2 className="text-base font-semibold text-foreground mb-3 flex items-center gap-2">
@@ -185,7 +185,7 @@ function StepDetail({
       </div>
 
       {/* Navigation Footer */}
-      <div className="flex-shrink-0 px-4 sm:px-6 py-4 border-t border-border bg-card/50">
+      <div className="flex-shrink-0 px-4 sm:px-6 py-3 sm:py-4 border-t border-border bg-card/50">
         <div className="flex items-center justify-between gap-2">
           <Button
             variant="outline"

@@ -165,7 +165,7 @@ const Index = () => {
   if (!currentStepData) return null;
 
   return (
-    <div className="h-screen flex flex-col bg-background">
+    <div className="h-screen md:h-screen flex flex-col bg-background overflow-hidden md:overflow-hidden">
       {/* Header */}
       <Header
         steps={stepsData}
@@ -177,7 +177,7 @@ const Index = () => {
       />
 
       {/* Mobile Sidebar Toggle */}
-      <div className="md:hidden flex items-center gap-2 px-4 py-2 border-b border-border bg-card/50">
+      <div className="md:hidden flex items-center gap-2 px-4 py-2 border-b border-border bg-card/50 flex-shrink-0">
         <Button
           variant="outline"
           size="sm"
@@ -193,7 +193,7 @@ const Index = () => {
       </div>
 
       {/* Main Content */}
-      <div className="flex-1 flex overflow-hidden relative">
+      <div className="flex-1 flex overflow-hidden md:overflow-hidden relative min-h-0">
         {/* Sidebar - Desktop */}
         {!isDesktopSidebarCollapsed && (
           <motion.aside
@@ -255,7 +255,7 @@ const Index = () => {
         )}
 
         {/* Step Detail */}
-        <main className="flex-1 overflow-hidden">
+        <main className="flex-1 overflow-hidden min-h-0">
           <Suspense fallback={
             <div className="flex items-center justify-center h-full">
               <div className="text-center">
@@ -283,9 +283,9 @@ const Index = () => {
       </div>
 
       {/* Footer */}
-      <footer className="h-10 border-t border-border bg-card/50 flex items-center justify-between px-4 text-xs text-muted-foreground">
-        <span>Prompt Runbook v1.0.0 — Debug Edition</span>
-        <span>最後更新: 2024-01-15</span>
+      <footer className="h-10 border-t border-border bg-card/50 flex items-center justify-between px-4 text-xs text-muted-foreground flex-shrink-0">
+        <span className="hidden sm:inline">Prompt Runbook v1.0.0 — Debug Edition</span>
+        <span className="text-xs">最後更新: 2024-01-15</span>
       </footer>
 
       {/* Settings Drawer */}
