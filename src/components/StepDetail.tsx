@@ -1,5 +1,5 @@
 import { motion } from "framer-motion";
-import { ArrowLeft, ArrowRight, Search, Wrench, CheckCircle, Database, Zap, Shield, Settings, Gauge, FileText } from "lucide-react";
+import { ArrowLeft, ArrowRight, Search, Wrench, CheckCircle, Database, Zap, Shield, Settings, Gauge, FileText, Rocket } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { PromptCard } from "./PromptCard";
@@ -38,6 +38,7 @@ const categoryConfig: Record<Step['category'], { icon: typeof Database; label: s
   line: { icon: Zap, label: "LINE", color: "bg-emerald-500/10 text-emerald-500 border-emerald-500/20" },
   frontend: { icon: Gauge, label: "前端優化", color: "bg-indigo-500/10 text-indigo-500 border-indigo-500/20" },
   templates: { icon: FileText, label: "功能模組", color: "bg-amber-500/10 text-amber-500 border-amber-500/20" },
+  deployment: { icon: Rocket, label: "部署問題", color: "bg-teal-500/10 text-teal-500 border-teal-500/20" },
 };
 
 export function StepDetail({

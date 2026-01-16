@@ -1,6 +1,6 @@
 import { memo, useMemo } from "react";
 import { motion } from "framer-motion";
-import { Check, AlertTriangle, AlertCircle, Info, Database, Zap, Shield, Settings, ChevronLeft, Gauge, FileText } from "lucide-react";
+import { Check, AlertTriangle, AlertCircle, Info, Database, Zap, Shield, Settings, ChevronLeft, Gauge, FileText, Rocket } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import type { Step } from "@/data/stepsData";
 import { getStepsByCategory } from "@/data/stepsData";
@@ -25,6 +25,7 @@ const categoryConfig: Record<Step['category'], { icon: typeof Database; label: s
   line: { icon: Zap, label: "LINE", color: "text-emerald-500" },
   frontend: { icon: Gauge, label: "前端優化", color: "text-indigo-500" },
   templates: { icon: FileText, label: "功能模組", color: "text-amber-500" },
+  deployment: { icon: Rocket, label: "部署問題", color: "text-teal-500" },
 };
 
 export const StepSidebar = memo(function StepSidebar({
@@ -55,7 +56,7 @@ export const StepSidebar = memo(function StepSidebar({
   // Group steps by category using helper function
   const groupedSteps = useMemo(() => {
     const grouped: Record<string, Step[]> = {};
-    const categories: Step['category'][] = ['supabase', 'n8n', 'security', 'general', 'backend', 'crm', 'email', 'line', 'frontend', 'templates'];
+    const categories: Step['category'][] = ['supabase', 'n8n', 'security', 'general', 'backend', 'crm', 'email', 'line', 'frontend', 'templates', 'deployment'];
     categories.forEach(category => {
       const categorySteps = getStepsByCategory(category);
       if (categorySteps.length > 0) {

@@ -28,7 +28,7 @@ export interface Step {
   shortTitle: string;
   purpose: string;
   badge: 'critical' | 'common' | 'advanced';
-  category: 'supabase' | 'n8n' | 'security' | 'general' | 'backend' | 'crm' | 'email' | 'line' | 'frontend' | 'templates';
+  category: 'supabase' | 'n8n' | 'security' | 'general' | 'backend' | 'crm' | 'email' | 'line' | 'frontend' | 'templates' | 'deployment';
   keywords: string[];
   checklist: ChecklistItem[];
   prompts: Prompt[];
