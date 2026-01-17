@@ -1,9 +1,12 @@
 import { motion } from "framer-motion";
-import { ArrowLeft, ArrowRight, Search, Wrench, CheckCircle, Database, Zap, Shield, Settings, Gauge, FileText, Rocket } from "lucide-react";
+import { ArrowLeft, ArrowRight, Search, Wrench, CheckCircle, Database, Zap, Shield, Settings, Gauge, FileText, Rocket, RotateCcw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { PromptCard } from "./PromptCard";
 import { Checklist } from "./Checklist";
+import { WorkflowChainComponent } from "./WorkflowChain";
+import { NextSteps } from "./NextSteps";
+import { Tags } from "./Tags";
 import type { Step, PromptTone, ChecklistItem } from "@/data/stepsData";
 
 interface StepDetailProps {
@@ -15,10 +18,13 @@ interface StepDetailProps {
   onPrevStep: () => void;
   onNextStep: () => void;
   onCompleteStep: () => void;
+  onUndoCompleteStep: () => void;
   hasPrev: boolean;
   hasNext: boolean;
   isCompleted: boolean;
   variables: Record<string, string>;
+  allSteps: Step[];
+  onStepClick: (stepId: number) => void;
 }
 
 const toneConfig: Record<PromptTone, { icon: typeof Search; label: string; description: string }> = {
@@ -50,11 +56,20 @@ function StepDetail({
   onPrevStep,
   onNextStep,
   onCompleteStep,
+  onUndoCompleteStep,
   hasPrev,
   hasNext,
   isCompleted,
   variables,
+  allSteps,
+  onStepClick,
 }: StepDetailProps) {
+  // 獲取下一步驟
+  const nextSteps = step.nextSteps
+    ? step.nextSteps
+        .map((id) => allSteps.find((s) => s.id === id))
+        .filter((s): s is Step => s !== undefined)
+    : [];
   const badgeClass =
     step.badge === "critical"
       ? "bg-destructive/10 text-destructive border-destructive/20"
@@ -196,6 +211,32 @@ function StepDetail({
             ))}
           </div>
         </section>
+
+        {/* Workflow Chains Section */}
+        {step.workflowChains && step.workflowChains.length > 0 && (
+          <WorkflowChainComponent
+            currentStep={step}
+            workflowChains={step.workflowChains}
+            allSteps={allSteps}
+            onStepClick={onStepClick}
+          />
+        )}
+
+        {/* Next Steps Section */}
+        {nextSteps.length > 0 && (
+          <NextSteps
+            currentStep={step}
+            nextSteps={nextSteps}
+            onStepClick={onStepClick}
+          />
+        )}
+
+        {/* Tags Section */}
+        <Tags
+          currentStep={step}
+          allSteps={allSteps}
+          onStepClick={onStepClick}
+        />
       </div>
 
       {/* Navigation Footer */}
@@ -213,7 +254,17 @@ function StepDetail({
           </Button>
 
           <div className="flex items-center gap-2">
-            {!isCompleted && (
+            {isCompleted ? (
+              <Button
+                variant="outline"
+                onClick={onUndoCompleteStep}
+                className="gap-2 border-warning/20 text-warning hover:bg-warning/10"
+                size="sm"
+              >
+                <RotateCcw className="w-4 h-4" />
+                <span className="hidden sm:inline">撤銷已解決</span>
+              </Button>
+            ) : (
               <Button
                 variant="secondary"
                 onClick={onCompleteStep}

@@ -130,6 +130,25 @@ const Index = () => {
     }
   }, [currentStep, completedSteps]);
 
+  const handleUndoCompleteStep = useCallback(() => {
+    if (completedSteps.includes(currentStep)) {
+      setCompletedSteps((prev) => prev.filter((id) => id !== currentStep));
+      // Also unmark all checklist items
+      setChecklists((prev) => {
+        const currentChecklist = prev[currentStep];
+        if (!currentChecklist) return prev;
+        
+        return {
+          ...prev,
+          [currentStep]: currentChecklist.map((item) => ({
+            ...item,
+            completed: false,
+          })),
+        };
+      });
+    }
+  }, [currentStep, completedSteps]);
+
   // Checklist toggle
   const handleChecklistToggle = useCallback(
     (itemId: string) => {
@@ -321,10 +340,13 @@ const Index = () => {
               onPrevStep={handlePrevStep}
               onNextStep={handleNextStep}
               onCompleteStep={handleCompleteStep}
+              onUndoCompleteStep={handleUndoCompleteStep}
               hasPrev={hasPrev}
               hasNext={hasNext}
               isCompleted={isCompleted}
               variables={variables}
+              allSteps={stepsData}
+              onStepClick={handleStepClick}
             />
           </Suspense>
         </main>

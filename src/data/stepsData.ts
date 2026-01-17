@@ -22,6 +22,14 @@ export interface ChecklistItem {
   completed: boolean;
 }
 
+export interface WorkflowChain {
+  id: string;
+  name: string;
+  description: string;
+  steps: number[]; // 完整工作流程步驟 ID 列表
+  tags?: string[]; // 標籤
+}
+
 export interface Step {
   id: number;
   title: string;
@@ -32,6 +40,8 @@ export interface Step {
   keywords: string[];
   checklist: ChecklistItem[];
   prompts: Prompt[];
+  nextSteps?: number[]; // 下一步驟 ID 列表（可選）
+  workflowChains?: WorkflowChain[]; // 完整工作流程鏈（可選）
 }
 
 export const stepsData: Step[] = [
@@ -3244,6 +3254,23 @@ await resend.emails.send({
 });`
         }
       }
+    ],
+    nextSteps: [36, 11, 51], // LINE推播, CRM, 表單處理
+    workflowChains: [
+      {
+        id: "email-notification",
+        name: "Email 通知流程",
+        description: "觸發事件 → Email 自動發送",
+        steps: [12],
+        tags: ["Email", "通知"]
+      },
+      {
+        id: "form-email-flow",
+        name: "表單 → Email 流程",
+        description: "表單提交 → Email 確認信",
+        steps: [51, 12],
+        tags: ["表單", "Email"]
+      }
     ]
   },
   // ===== LINE 官方帳號 =====
@@ -3551,6 +3578,193 @@ await fetch(
 // 2. 確認選單圖片顯示正確
 // 3. 測試每個區塊的點擊動作`
         }
+      },
+      {
+        id: "p13-4",
+        title: "4. LINE Webhook 與 n8n 串接",
+        description: "將 LINE Webhook 接收到的訊息轉發到 n8n 進行自動化處理",
+        keywords: ["n8n", "webhook", "integration", "automation", "workflow"],
+        prompts: {
+          diagnostic: `【Cursor 自動化指令】檢查 LINE Webhook 與 n8n 串接狀態
+
+檢查以下項目：
+1. LINE Webhook 是否正常接收訊息
+2. n8n Webhook 節點是否已建立
+3. LINE Webhook 是否已設定轉發到 n8n
+4. n8n 工作流程是否正常執行`,
+          fix: `【Cursor 自動化指令】建立 LINE Webhook 與 n8n 串接
+
+## 方法一：在 LINE Webhook 中轉發到 n8n
+
+1. 修改 LINE Webhook Edge Function，將訊息轉發到 n8n：
+
+// supabase/functions/line-webhook/index.ts
+import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
+import { createHmac } from "https://deno.land/std@0.190.0/crypto/mod.ts";
+
+const channelSecret = Deno.env.get("LINE_CHANNEL_SECRET") || "{{line_channel_secret}}";
+const channelToken = Deno.env.get("LINE_CHANNEL_ACCESS_TOKEN") || "{{line_channel_access_token}}";
+const n8nWebhookUrl = Deno.env.get("N8N_WEBHOOK_URL") || "{{n8n_webhook_url}}";
+
+serve(async (req) => {
+  // 驗證簽章
+  const body = await req.text();
+  const signature = req.headers.get("x-line-signature");
+  
+  const hash = createHmac("sha256", channelSecret)
+    .update(body)
+    .digest("base64");
+    
+  if (hash !== signature) {
+    return new Response("Invalid signature", { status: 401 });
+  }
+
+  const { events } = JSON.parse(body);
+  
+  for (const event of events) {
+    // 轉發訊息到 n8n
+    try {
+      await fetch(n8nWebhookUrl, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          event: event,
+          source: "line",
+          timestamp: new Date().toISOString(),
+        }),
+      });
+    } catch (error) {
+      console.error("Failed to forward to n8n:", error);
+    }
+
+    // 如果需要立即回覆，可以在這裡處理
+    if (event.type === "message" && event.message.type === "text") {
+      // 簡單自動回覆
+      await replyMessage(event.replyToken, [
+        { type: "text", text: "已收到您的訊息，正在處理中..." }
+      ]);
+    }
+  }
+
+  return new Response("OK");
+});
+
+async function replyMessage(replyToken: string, messages: any[]) {
+  await fetch("https://api.line.me/v2/bot/message/reply", {
+    method: "POST",
+    headers: {
+      "Authorization": \`Bearer \${channelToken}\`,
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({ replyToken, messages })
+  });
+}
+
+## 方法二：直接在 n8n 中接收 LINE Webhook
+
+1. 在 n8n 中建立 Webhook 節點：
+   - 新增 Webhook 節點
+   - HTTP Method: POST
+   - Path: line-webhook
+   - 複製 Webhook URL
+
+2. 在 LINE Developers Console 設定 Webhook URL：
+   - 將 n8n Webhook URL 設定為 LINE Webhook URL
+   - 格式：https://your-n8n-instance.com/webhook/line-webhook
+
+3. 在 n8n 中處理 LINE 訊息：
+   Webhook 節點（接收 LINE 訊息）
+     ↓
+   Function 節點（解析訊息內容）
+     ↓
+   Switch 節點（根據訊息類型分流）
+     ├─→ 文字訊息 → AI 回覆節點
+     ├─→ 圖片訊息 → 圖片處理節點
+     └─→ 其他訊息 → 預設處理
+
+4. Function 節點範例（解析 LINE 訊息）：
+   const items = $input.all();
+   const lineEvent = items[0].json;
+   
+   return {
+     json: {
+       eventType: lineEvent.events[0].type,
+       messageType: lineEvent.events[0].message?.type,
+       messageText: lineEvent.events[0].message?.text,
+       userId: lineEvent.events[0].source.userId,
+       replyToken: lineEvent.events[0].replyToken,
+       timestamp: lineEvent.events[0].timestamp,
+     }
+   };
+
+5. 回覆訊息（使用 HTTP Request 節點）：
+   - Method: POST
+   - URL: https://api.line.me/v2/bot/message/reply
+   - Headers:
+     Authorization: Bearer {{line_channel_access_token}}
+     Content-Type: application/json
+   - Body:
+     {
+       "replyToken": "{{replyToken}}",
+       "messages": [
+         {
+           "type": "text",
+           "text": "這是來自 n8n 的回覆"
+         }
+       ]
+     }
+
+## 方法三：使用 n8n LINE 節點（推薦）
+
+1. 在 n8n 中安裝 LINE 節點：
+   - 前往 n8n Settings > Community Nodes
+   - 安裝 @n8n/n8n-nodes-line
+
+2. 建立工作流程：
+   Webhook 節點（接收 LINE 訊息）
+     ↓
+   LINE 節點（自動回覆）
+     - Channel Access Token: {{line_channel_access_token}}
+     - Operation: Reply Message
+     - Reply Token: {{replyToken}}
+     - Message: 自訂回覆內容
+
+🔗 **可串接功能**：
+- 📧 Email 通知 → 步驟 12 (Email 自動化) - 在 LINE 節點後添加 Email 節點
+- 💾 資料庫儲存 → 步驟 25 (資料庫遷移) - 儲存對話記錄到資料庫
+- 🤖 AI 自動回覆 → 步驟 54 (n8n LINE 訊息) - 使用 OpenAI 節點產生回覆
+- 📋 CRM 同步 → 步驟 11 (CRM 功能) - 將客戶訊息同步到 CRM
+
+🔄 **回訪機制**：
+- ⏰ 定期回訪 → 使用 Cron 節點定期發送 LINE 推播
+- 📊 訊息統計 → 定期產生對話統計報表並推播`,
+          verify: `測試 LINE Webhook 與 n8n 串接：
+
+1. 在 LINE 中發送測試訊息
+2. 確認 n8n 工作流程被觸發
+3. 檢查 n8n Executions 是否有執行記錄
+4. 確認回覆訊息是否正常發送
+5. 測試完整工作流程（訊息 → n8n → 回覆）`
+        }
+      }
+    ],
+    nextSteps: [54, 36, 12, 25], // n8n LINE訊息, LINE推播, Email, 資料庫
+    workflowChains: [
+      {
+        id: "line-webhook-n8n",
+        name: "LINE Webhook → n8n 流程",
+        description: "LINE 訊息接收 → n8n 處理 → 自動回覆",
+        steps: [13, 54],
+        tags: ["LINE", "n8n", "自動化"]
+      },
+      {
+        id: "line-complete-flow",
+        name: "完整 LINE 處理流程",
+        description: "LINE 訊息 → n8n → 資料庫儲存 → Email通知 → LINE推播",
+        steps: [13, 54, 25, 12, 36],
+        tags: ["LINE", "完整流程"]
       }
     ]
   },
@@ -8365,6 +8579,939 @@ npm audit
 2. 測試搜尋功能
 3. 檢查導航結構
 4. 驗證部署狀態`
+        }
+      }
+    ]
+  },
+  // ===== n8n 網站架設功能 =====
+  {
+    id: 51,
+    title: "n8n 網站表單處理自動化",
+    shortTitle: "表單處理",
+    purpose: "使用 n8n 自動化處理網站表單提交，包含接收表單資料、發送通知、儲存到資料庫、同步到 CRM 等完整流程。",
+    badge: "common",
+    category: "n8n",
+    keywords: ["n8n", "form", "webhook", "email", "line", "database", "form-flow", "常用功能"],
+    checklist: [
+      { id: "51-1", label: "建立 n8n Webhook 節點接收表單", completed: false },
+      { id: "51-2", label: "設定資料驗證與清理", completed: false },
+      { id: "51-3", label: "串接 Email 通知", completed: false },
+      { id: "51-4", label: "串接 LINE 推播通知", completed: false },
+      { id: "51-5", label: "儲存表單資料到資料庫", completed: false },
+      { id: "51-6", label: "測試完整流程", completed: false },
+    ],
+    prompts: [
+      {
+        id: "p51-1",
+        title: "1. 建立 Webhook 接收表單",
+        description: "設定 n8n Webhook 節點接收網站表單資料",
+        keywords: ["webhook", "form", "receive"],
+        prompts: {
+          diagnostic: `【Cursor 自動化指令】檢查 n8n Webhook 設定
+
+檢查以下項目：
+1. n8n Webhook 節點是否已建立
+2. Webhook URL 是否正確產生
+3. Webhook 是否已啟用（Active）
+4. 表單是否能成功觸發 Webhook`,
+          fix: `【Cursor 自動化指令】建立 n8n 表單處理工作流程
+
+1. 在 n8n 中建立新 Workflow：
+   - 新增 Webhook 節點
+   - 設定為 POST 方法
+   - 複製 Webhook URL
+
+2. Webhook 節點設定：
+   - HTTP Method: POST
+   - Path: contact-form (或自訂路徑)
+   - Response Mode: Response Node
+   - 勾選 "Respond When Last Node Finishes"
+
+3. 在網站表單中呼叫 Webhook：
+   const handleSubmit = async (formData) => {
+     try {
+       const response = await fetch('{{webhook_url}}', {
+         method: 'POST',
+         headers: {
+           'Content-Type': 'application/json',
+         },
+         body: JSON.stringify({
+           name: formData.name,
+           email: formData.email,
+           message: formData.message,
+           timestamp: new Date().toISOString(),
+         }),
+       });
+       
+       if (response.ok) {
+         toast.success('表單已送出，我們會盡快與您聯絡！');
+       }
+     } catch (error) {
+       console.error('Form submission error:', error);
+       toast.error('送出失敗，請稍後再試');
+     }
+   };
+
+4. 測試 Webhook：
+   - 在網站表單提交測試資料
+   - 在 n8n Executions 查看是否收到資料
+
+🔗 **可串接功能**：
+- 📧 Email 通知 → 步驟 12 (Email 自動化) - 在 Webhook 後添加 Email 節點
+- 💬 LINE 推播 → 步驟 36 (LINE 推播) - 在 Webhook 後添加 LINE 節點
+- 💾 資料庫儲存 → 步驟 25 (資料庫遷移) - 在 Webhook 後添加 Supabase 節點
+- 💬 Slack 通知 → 步驟 36 (Slack 整合) - 在 Webhook 後添加 Slack 節點
+- 📋 CRM 同步 → 步驟 11 (CRM 功能) - 使用 HTTP Request 節點串接`,
+          verify: `測試表單處理流程：
+1. 在網站表單提交測試資料
+2. 確認 n8n 收到資料
+3. 檢查 Email 是否發送
+4. 檢查 LINE 是否收到推播
+5. 確認資料是否存入資料庫`
+        }
+      },
+      {
+        id: "p51-2",
+        title: "2. 串接 Email 與 LINE 通知",
+        description: "在表單處理流程中添加 Email 和 LINE 通知",
+        keywords: ["email", "line", "notification"],
+        prompts: {
+          diagnostic: `檢查通知設定：
+1. Email 節點是否正確設定
+2. LINE 節點是否正確配置
+3. 通知是否成功發送`,
+          fix: `【Cursor 自動化指令】串接表單通知功能
+
+1. 在 n8n 中串接 Email 節點：
+   Webhook 節點
+     ↓
+   Function 節點（資料處理，可選）
+     ↓
+   Email 節點（發送通知給管理員）
+   
+   Email 節點設定：
+   - From: {{admin_email}}
+   - To: {{admin_email}}
+   - Subject: 新的聯絡表單：{{formData.name}}
+   - Message: 
+     姓名：{{formData.name}}
+     信箱：{{formData.email}}
+     訊息：{{formData.message}}
+
+2. 串接 LINE 推播節點：
+   Email 節點
+     ↓
+   LINE 節點（推播通知）
+   
+   LINE 節點設定：
+   - Channel Access Token: {{line_channel_access_token}}
+   - To: {{admin_line_user_id}}
+   - Message: 新表單：{{formData.name}} - {{formData.message}}
+
+3. 並行處理（使用 Split In Batches）：
+   Webhook 節點
+     ↓
+   Split In Batches 節點
+     ├─→ Email 節點
+     ├─→ LINE 節點
+     └─→ Supabase 節點（儲存資料）
+
+🔗 **相關步驟**：
+- Email 設定 → 步驟 12
+- LINE 推播設定 → 步驟 36`,
+          verify: `測試通知功能：
+1. 提交表單測試資料
+2. 確認收到 Email
+3. 確認收到 LINE 推播
+4. 檢查通知內容是否正確`
+        }
+      }
+    ],
+    nextSteps: [12, 36, 25, 11], // Email, LINE推播, 資料庫, CRM
+    workflowChains: [
+      {
+        id: "form-to-email",
+        name: "表單 → Email 自動回信流程",
+        description: "表單提交後自動發送 Email 確認信給使用者和管理員",
+        steps: [51, 12],
+        tags: ["表單", "Email", "自動化"]
+      },
+      {
+        id: "form-to-line",
+        name: "表單 → LINE 推播流程",
+        description: "表單提交後透過 LINE 推播通知管理員",
+        steps: [51, 36],
+        tags: ["表單", "LINE", "通知"]
+      },
+      {
+        id: "form-complete-flow",
+        name: "完整表單處理流程",
+        description: "表單 → n8n → Email通知 → LINE推播 → 資料庫儲存 → CRM同步",
+        steps: [51, 12, 36, 25, 11],
+        tags: ["表單", "完整流程", "常用功能"]
+      }
+    ]
+  },
+  {
+    id: 52,
+    title: "n8n 使用者註冊自動化流程",
+    shortTitle: "註冊自動化",
+    purpose: "實作使用者註冊的自動化流程，包含歡迎 Email、LINE 通知、使用者資料建立、優惠券發送等完整流程。",
+    badge: "common",
+    category: "n8n",
+    keywords: ["n8n", "registration", "auth", "welcome", "email", "line", "user-flow", "常用功能"],
+    checklist: [
+      { id: "52-1", label: "設定 Supabase Auth Webhook", completed: false },
+      { id: "52-2", label: "實作註冊歡迎 Email", completed: false },
+      { id: "52-3", label: "實作 LINE 歡迎訊息", completed: false },
+      { id: "52-4", label: "建立使用者資料到資料庫", completed: false },
+      { id: "52-5", label: "發送註冊優惠券", completed: false },
+      { id: "52-6", label: "設定回訪提醒機制", completed: false },
+    ],
+    prompts: [
+      {
+        id: "p52-1",
+        title: "1. 監聽使用者註冊事件",
+        description: "使用 Supabase Webhook 監聽使用者註冊",
+        keywords: ["supabase", "auth", "webhook", "registration"],
+        prompts: {
+          diagnostic: `檢查註冊監聽設定：
+1. Supabase Webhook 是否設定
+2. 註冊事件是否觸發
+3. Webhook 資料格式是否正確`,
+          fix: `【Cursor 自動化指令】設定註冊自動化流程
+
+1. 在 Supabase 設定 Webhook：
+   - 前往 Supabase Dashboard
+   - Database → Webhooks → Create new webhook
+   - Event: auth.users (INSERT)
+   - HTTP Request → POST to: {{n8n_webhook_url}}
+
+2. 在 n8n 中建立 Workflow：
+   Webhook 節點（接收 Supabase 事件）
+     ↓
+   Function 節點（解析使用者資料）
+     ↓
+   Split In Batches（並行處理）
+
+3. 解析使用者資料：
+   const userData = items[0].json;
+   const userId = userData.record.id;
+   const userEmail = userData.record.email;
+   const userName = userData.record.raw_user_meta_data?.name || '新用戶';
+
+🔗 **可串接功能**：
+- ✉️ 歡迎 Email → 步驟 12 (Email 自動化) - Email 節點
+- 💬 LINE 歡迎訊息 → 步驟 36 (LINE 推播) - LINE 節點
+- 💾 使用者資料建立 → 步驟 25 (資料庫遷移) - Supabase 節點
+- 🎁 優惠券發送 → 步驟 13 (LINE Webhook) - LINE 優惠券
+- 📋 CRM 建立 → 步驟 46 (進階 CRM) - HTTP Request 節點
+- 🔄 7天回訪提醒 → 步驟 36 (LINE 推播) + Cron 節點（回訪機制）`,
+          verify: `測試註冊流程：
+1. 建立測試帳號
+2. 確認 Webhook 收到事件
+3. 檢查 Email 是否發送
+4. 檢查 LINE 訊息是否發送
+5. 確認使用者資料是否建立`
+        }
+      },
+      {
+        id: "p52-2",
+        title: "2. 實作歡迎訊息與優惠券",
+        description: "發送歡迎 Email 和 LINE 訊息，並自動發送註冊優惠券",
+        keywords: ["welcome", "email", "line", "coupon"],
+        prompts: {
+          diagnostic: `檢查歡迎訊息設定：
+1. Email 範本是否建立
+2. LINE 訊息格式是否正確
+3. 優惠券發送是否成功`,
+          fix: `【Cursor 自動化指令】實作註冊歡迎流程
+
+1. Email 歡迎信設定（Email 節點）：
+   Subject: 歡迎加入 {{site_name}}！
+   Message:
+   親愛的 {{userName}}，
+   
+   歡迎您註冊 {{site_name}}！
+   
+   以下是您的帳號資訊：
+   - 電子郵件：{{userEmail}}
+   
+   請點擊以下連結驗證您的帳號：
+   {{verification_link}}
+   
+   感謝您的加入！
+
+2. LINE 歡迎訊息設定（LINE 節點）：
+   Channel Access Token: {{line_channel_access_token}}
+   To: {{user_line_id}} (如果已綁定 LINE)
+   Message:
+   🎉 歡迎加入 {{site_name}}！
+   
+   感謝您註冊成為我們的會員。
+   我們為您準備了一份歡迎禮：{{coupon_code}}
+   
+   立即使用優惠券，享受 {{discount}} 折扣！
+
+3. 發送 LINE 優惠券（LINE 節點 - 優惠券功能）：
+   - 使用 LINE Messaging API 發送優惠券
+   - 或使用 LINE Notify 推播優惠券資訊
+
+🔄 **回訪機制**（7天後提醒使用）：
+Cron 節點（7天後執行）
+  ↓
+Supabase 節點（查詢註冊 7 天未使用的用戶）
+  ↓
+Function 節點（過濾條件）
+  ↓
+LINE 節點（發送提醒訊息）
+
+🔗 **相關步驟**：
+- Email 自動化 → 步驟 47 (Email 行銷)
+- LINE 優惠券 → 步驟 13 (LINE Webhook)
+- 回訪機制 → 步驟 36 (LINE 推播)`,
+          verify: `測試歡迎流程：
+1. 註冊新帳號
+2. 確認收到歡迎 Email
+3. 確認收到 LINE 訊息
+4. 確認收到優惠券
+5. 測試回訪提醒功能`
+        }
+      }
+    ]
+  },
+  {
+    id: 53,
+    title: "n8n 訂單處理自動化流程",
+    shortTitle: "訂單自動化",
+    purpose: "實作完整的訂單處理自動化流程，包含訂單接收、付款處理、庫存更新、Email 確認、LINE 通知、出貨處理等。",
+    badge: "critical",
+    category: "n8n",
+    keywords: ["n8n", "order", "payment", "inventory", "email", "line", "order-flow", "核心功能"],
+    checklist: [
+      { id: "53-1", label: "建立訂單 Webhook 接收", completed: false },
+      { id: "53-2", label: "串接付款處理（Stripe）", completed: false },
+      { id: "53-3", label: "實作庫存更新", completed: false },
+      { id: "53-4", label: "發送訂單確認 Email", completed: false },
+      { id: "53-5", label: "發送 LINE 訂單通知", completed: false },
+      { id: "53-6", label: "設定出貨通知流程", completed: false },
+      { id: "53-7", label: "實作付款提醒回訪機制", completed: false },
+    ],
+    prompts: [
+      {
+        id: "p53-1",
+        title: "1. 訂單接收與付款處理",
+        description: "建立訂單 Webhook 並串接付款處理",
+        keywords: ["order", "webhook", "payment", "stripe"],
+        prompts: {
+          diagnostic: `檢查訂單流程設定：
+1. 訂單 Webhook 是否正確接收資料
+2. Stripe 付款是否正常處理
+3. 訂單狀態是否正確更新`,
+          fix: `【Cursor 自動化指令】建立訂單自動化流程
+
+1. 建立訂單 Webhook（n8n）：
+   Webhook 節點（接收訂單）
+     ↓
+   Function 節點（資料驗證）
+     ↓
+   IF 節點（檢查付款狀態）
+     ├─ 已付款 → 繼續處理流程
+     └─ 未付款 → 儲存待付款訂單
+
+2. 串接 Stripe 付款處理：
+   Function 節點
+     ↓
+   Stripe 節點（處理付款）
+     ↓
+   IF 節點（判斷付款結果）
+     ├─ 成功 → 更新訂單狀態
+     └─ 失敗 → 發送付款失敗通知
+
+3. Stripe 節點設定：
+   - Operation: Create Payment Intent
+   - Amount: {{order_amount}}
+   - Currency: {{currency}}
+   - Customer: {{customer_id}}
+
+🔗 **可串接功能**：
+- 💳 Stripe 付款 → 步驟 38 (Stripe 支付整合)
+- 💾 庫存更新 → 步驟 25 (資料庫遷移) - Supabase 節點
+- 📧 Email 確認 → 步驟 12 (Email 自動化) - Email 節點
+- 💬 LINE 通知 → 步驟 36 (LINE 推播) - LINE 節點
+- 📋 CRM 同步 → 步驟 11 (CRM 功能) - HTTP Request 節點`,
+          verify: `測試訂單流程：
+1. 建立測試訂單
+2. 確認付款處理
+3. 檢查庫存是否更新
+4. 確認 Email 是否發送
+5. 確認 LINE 通知是否發送`
+        }
+      },
+      {
+        id: "p53-2",
+        title: "2. 訂單通知與出貨處理",
+        description: "實作訂單確認通知和出貨處理流程",
+        keywords: ["order", "notification", "shipping", "email", "line"],
+        prompts: {
+          diagnostic: `檢查通知與出貨流程：
+1. 訂單確認通知是否發送
+2. 出貨通知是否正常
+3. 物流追蹤碼是否正確`,
+          fix: `【Cursor 自動化指令】實作訂單通知與出貨
+
+1. 訂單確認 Email（Email 節點）：
+   Subject: 訂單確認 #{{order_id}}
+   Message:
+   親愛的 {{customer_name}}，
+   
+   感謝您的訂購！
+   
+   訂單編號：{{order_id}}
+   訂購日期：{{order_date}}
+   付款金額：{{order_amount}}
+   付款狀態：已付款
+   
+   我們將盡快為您處理出貨。
+
+2. LINE 訂單通知（LINE 節點）：
+   Channel Access Token: {{line_channel_access_token}}
+   To: {{customer_line_id}}
+   Message:
+   📦 您的訂單已確認！
+   
+   訂單編號：#{{order_id}}
+   金額：{{order_amount}}
+   
+   我們將盡快為您出貨。
+   出貨後會再次通知您。
+
+3. 出貨通知流程：
+   Webhook（出貨事件）
+     ↓
+   Function 節點（產生追蹤碼）
+     ↓
+   Supabase 節點（更新訂單狀態）
+     ↓
+   LINE 節點（發送出貨通知）
+   
+   LINE 出貨通知訊息：
+   🚚 您的訂單已出貨！
+   
+   訂單編號：#{{order_id}}
+   物流追蹤碼：{{tracking_number}}
+   追蹤連結：{{tracking_url}}
+
+🔄 **回訪機制**（付款提醒）：
+Cron 節點（每 6 小時檢查一次）
+  ↓
+Supabase 節點（查詢未付款訂單）
+  ↓
+Function 節點（計算訂單時間）
+  ↓
+IF 節點（判斷是否超過 24 小時）
+  ├─ 是 → LINE 節點（發送付款提醒）
+  └─ 否 → 結束
+
+付款提醒訊息：
+⏰ 付款提醒
+   
+   您的訂單 #{{order_id}} 尚未付款
+   金額：{{order_amount}}
+   
+   請點擊以下連結完成付款：
+   {{payment_link}}
+
+🔗 **相關步驟**：
+- Stripe 整合 → 步驟 38
+- LINE 推播 → 步驟 36
+- Email 自動化 → 步驟 47`,
+          verify: `測試出貨流程：
+1. 模擬出貨事件
+2. 確認訂單狀態更新
+3. 確認收到出貨 Email
+4. 確認收到 LINE 出貨通知
+5. 測試付款提醒功能`
+        }
+      }
+    ]
+  },
+  {
+    id: 54,
+    title: "n8n LINE 訊息接收與自動回覆",
+    shortTitle: "LINE 自動回覆",
+    purpose: "實作 LINE 訊息接收、關鍵字自動回覆、訊息儲存、AI 分析、客服轉接等完整 LINE 訊息處理流程。",
+    badge: "common",
+    category: "n8n",
+    keywords: ["n8n", "line", "message", "reply", "webhook", "line-message-flow", "常用功能"],
+    checklist: [
+      { id: "54-1", label: "設定 LINE Webhook 接收訊息", completed: false },
+      { id: "54-2", label: "實作關鍵字自動回覆", completed: false },
+      { id: "54-3", label: "儲存訊息到資料庫", completed: false },
+      { id: "54-4", label: "串接 AI 分析功能（可選）", completed: false },
+      { id: "54-5", label: "實作客服轉接機制", completed: false },
+      { id: "54-6", label: "測試訊息處理流程", completed: false },
+    ],
+    prompts: [
+      {
+        id: "p54-1",
+        title: "1. LINE Webhook 接收訊息",
+        description: "設定 LINE Messaging API Webhook 接收使用者訊息",
+        keywords: ["line", "webhook", "message", "receive"],
+        prompts: {
+          diagnostic: `檢查 LINE Webhook 設定：
+1. LINE Messaging API Webhook 是否設定
+2. n8n Webhook URL 是否正確
+3. 訊息是否成功接收`,
+          fix: `【Cursor 自動化指令】設定 LINE 訊息接收
+
+1. 在 LINE Developers Console 設定 Webhook：
+   - 前往 LINE Developers Console
+   - 選擇 Channel
+   - Messaging API → Webhook settings
+   - Webhook URL: {{n8n_webhook_url}}
+   - 啟用 Webhook
+
+2. 在 n8n 中建立 Workflow：
+   Webhook 節點（接收 LINE 事件）
+     ↓
+   Function 節點（解析 LINE 訊息）
+     ↓
+   Switch 節點（判斷訊息類型）
+     ├─ 文字訊息 → 處理文字
+     ├─ 圖片訊息 → 處理圖片
+     ├─ 貼圖訊息 → 處理貼圖
+     └─ 其他 → 記錄日誌
+
+3. 解析 LINE 訊息資料：
+   const lineEvent = items[0].json;
+   const messageType = lineEvent.events[0].type;
+   const messageText = lineEvent.events[0].message?.text || '';
+   const userId = lineEvent.events[0].source.userId;
+   const timestamp = lineEvent.events[0].timestamp;
+
+🔗 **可串接功能**：
+- 🤖 自動回覆 → 同步驟 54（Switch 節點後添加）
+- 💾 訊息儲存 → 步驟 25 (資料庫遷移) - Supabase 節點
+- 🔍 AI 分析 → 步驟 42 (Mock 服務) - HTTP Request (OpenAI)
+- 👤 客服轉接 → 步驟 36 (Slack 整合) - Slack 節點
+- 📋 表單處理 → 同步驟 54（Function 節點處理表單）`,
+          verify: `測試 LINE 訊息接收：
+1. 傳送測試訊息到 LINE Bot
+2. 確認 n8n 收到事件
+3. 檢查訊息資料是否正確解析
+4. 驗證不同訊息類型處理`
+        }
+      },
+      {
+        id: "p54-2",
+        title: "2. 關鍵字自動回覆",
+        description: "實作關鍵字自動回覆和 FAQ 回覆",
+        keywords: ["line", "reply", "keyword", "faq"],
+        prompts: {
+          diagnostic: `檢查自動回覆設定：
+1. 關鍵字判斷是否正確
+2. 回覆訊息格式是否正確
+3. 是否成功發送回覆`,
+          fix: `【Cursor 自動化指令】實作 LINE 自動回覆
+
+1. 在 Function 節點中實作關鍵字判斷：
+   const messageText = items[0].json.messageText.toLowerCase();
+   const userId = items[0].json.userId;
+   
+   let replyMessage = '';
+   
+   // 關鍵字判斷
+   if (messageText.includes('價格') || messageText.includes('多少錢')) {
+     replyMessage = '我們的價格方案：\n基本方案：$10,000/月\n進階方案：$20,000/月\n專業方案：$30,000/月';
+   } else if (messageText.includes('營業時間') || messageText.includes('時間')) {
+     replyMessage = '營業時間：\n週一至週五：09:00 - 18:00\n週六：10:00 - 16:00\n週日：休息';
+   } else if (messageText.includes('聯絡') || messageText.includes('電話')) {
+     replyMessage = '聯絡方式：\n電話：02-1234-5678\nEmail：contact@example.com\n地址：台北市信義區...';
+   } else if (messageText.includes('訂單') || messageText.includes('查詢')) {
+     replyMessage = '請提供訂單編號，我們將為您查詢訂單狀態。';
+   } else {
+     replyMessage = '感謝您的訊息！我們會盡快回覆您。\n\n您也可以輸入關鍵字查詢：\n- 價格\n- 營業時間\n- 聯絡方式\n- 訂單查詢';
+   }
+   
+   return [{ json: { replyMessage, userId } }];
+
+2. 串接 LINE Reply API 節點：
+   Function 節點
+     ↓
+   LINE 節點（回覆訊息）
+   
+   LINE 節點設定：
+   - Operation: Reply Message
+   - Reply Token: {{reply_token}}
+   - Message: {{replyMessage}}
+
+3. 儲存對話記錄（並行處理）：
+   LINE 節點
+     ↓
+   Supabase 節點（儲存訊息到資料庫）
+   
+   INSERT INTO messages (
+     user_id, message_text, reply_text, created_at
+   ) VALUES (
+     {{userId}}, {{original_message}}, {{replyMessage}}, NOW()
+   );
+
+🔗 **相關步驟**：
+- LINE Webhook 設定 → 步驟 13
+- 資料庫儲存 → 步驟 25
+- LINE 推播 → 步驟 36`,
+          verify: `測試自動回覆：
+1. 傳送關鍵字訊息（如「價格」）
+2. 確認收到自動回覆
+3. 測試不同關鍵字
+4. 確認對話記錄是否儲存`
+        }
+      },
+      {
+        id: "p54-3",
+        title: "3. 24小時回訪機制",
+        description: "實作訊息回訪機制，24小時後自動跟進",
+        keywords: ["line", "revisit", "follow", "mechanism", "revisit-mechanism"],
+        prompts: {
+          diagnostic: `檢查回訪機制設定：
+1. Cron 節點是否正確設定
+2. 回訪條件判斷是否正確
+3. LINE 推播是否成功發送`,
+          fix: `【Cursor 自動化指令】實作 LINE 回訪機制
+
+1. 建立回訪檢查流程（使用 Cron 節點）：
+   Cron 節點（每小時執行一次）
+     ↓
+   Supabase 節點（查詢需要回訪的對話）
+     ↓
+   Function 節點（過濾條件）
+     ↓
+   IF 節點（判斷是否需要回訪）
+     ├─ 是 → LINE 推播節點（發送回訪訊息）
+     └─ 否 → 結束
+
+2. Supabase 查詢條件：
+   SELECT * FROM messages
+   WHERE 
+     created_at < NOW() - INTERVAL '24 hours'
+     AND reply_sent = true
+     AND revisit_sent = false
+     AND message_text NOT LIKE '%訂單%'
+   LIMIT 100;
+
+3. LINE 回訪訊息（LINE 推播節點）：
+   Channel Access Token: {{line_channel_access_token}}
+   To: {{user_id}}
+   Message:
+   👋 您好！還記得昨天的問題嗎？
+   
+   如果您還有其他問題，隨時都可以詢問我們！
+   
+   或者您也可以：
+   - 查看我們的產品：{{product_link}}
+   - 聯絡客服：{{contact_link}}
+
+4. 更新回訪狀態（Supabase 節點）：
+   UPDATE messages
+   SET revisit_sent = true, revisit_sent_at = NOW()
+   WHERE id = {{message_id}};
+
+🔄 **執行節點位置**：
+- ⏰ **Cron 節點**（排程：每小時）→ 步驟 30 (部署驗證) - Cron 整合
+- 💾 **Supabase 節點**（查詢對話）→ 步驟 25 (資料庫遷移)
+- 📱 **LINE 推播節點**（發送回訪）→ 步驟 36 (LINE 推播)
+
+🔗 **相關步驟**：
+- LINE 推播設定 → 步驟 36
+- 資料庫查詢 → 步驟 24 (資料庫效能)`,
+          verify: `測試回訪機制：
+1. 建立測試對話（24 小時前）
+2. 等待 Cron 觸發（或手動執行）
+3. 確認回訪訊息是否發送
+4. 檢查回訪狀態是否更新`
+        }
+      }
+    ]
+  },
+  {
+    id: 55,
+    title: "n8n LINE 推播通知與回訪機制",
+    shortTitle: "LINE 推播",
+    purpose: "實作 LINE 推播通知功能，包含訂單狀態推播、付款提醒、優惠活動通知、定期報表等，並建立完整的回訪機制。",
+    badge: "common",
+    category: "n8n",
+    keywords: ["n8n", "line", "push", "notification", "revisit", "mechanism", "notification-flow", "revisit-mechanism", "常用功能"],
+    checklist: [
+      { id: "55-1", label: "設定 LINE Channel Access Token", completed: false },
+      { id: "55-2", label: "實作訂單狀態推播", completed: false },
+      { id: "55-3", label: "實作付款提醒回訪機制", completed: false },
+      { id: "55-4", label: "實作優惠活動推播", completed: false },
+      { id: "55-5", label: "實作定期報表推播", completed: false },
+      { id: "55-6", label: "測試推播與回訪功能", completed: false },
+    ],
+    prompts: [
+      {
+        id: "p55-1",
+        title: "1. LINE 推播基礎設定",
+        description: "設定 LINE Channel Access Token 和推播 API",
+        keywords: ["line", "push", "token", "setup"],
+        prompts: {
+          diagnostic: `檢查 LINE 推播設定：
+1. Channel Access Token 是否正確
+2. LINE 推播 API 是否可用
+3. 推播訊息格式是否正確`,
+          fix: `【Cursor 自動化指令】設定 LINE 推播功能
+
+1. 取得 LINE Channel Access Token：
+   - 前往 LINE Developers Console
+   - 選擇 Channel → Messaging API
+   - 點擊 "Issue" 生成 Channel Access Token
+   - 複製 Token（格式：長字串）
+
+2. 在 n8n 中設定 LINE 節點：
+   - 新增 LINE 節點
+   - Operation: Push Message
+   - Channel Access Token: {{line_channel_access_token}}
+   - To: {{user_line_id}}
+   - Message Type: Text
+
+3. 推播訊息格式：
+   const pushMessage = {
+     to: userId,
+     messages: [{
+       type: 'text',
+       text: '{{message_text}}'
+     }]
+   };
+
+🔗 **可串接功能**：
+- 📦 訂單狀態 → 同步驟 55（Webhook 觸發）
+- 💰 付款提醒 → 步驟 55（Cron + 回訪機制）
+- 🎁 優惠活動 → 步驟 55（Cron 或 Webhook）
+- 📊 定期報表 → 步驟 48 (行為追蹤) + 步驟 55（Cron 節點）`,
+          verify: `測試 LINE 推播：
+1. 傳送測試推播訊息
+2. 確認訊息是否送達
+3. 檢查訊息格式是否正確
+4. 驗證錯誤處理`
+        }
+      },
+      {
+        id: "p55-2",
+        title: "2. 付款提醒回訪機制",
+        description: "實作未付款訂單的自動提醒回訪機制",
+        keywords: ["line", "payment", "reminder", "revisit", "mechanism"],
+        prompts: {
+          diagnostic: `檢查付款提醒機制：
+1. Cron 節點是否正確設定
+2. 未付款訂單查詢是否正確
+3. 提醒訊息是否成功發送`,
+          fix: `【Cursor 自動化指令】實作付款提醒回訪機制
+
+1. 建立付款提醒流程（使用 Cron 節點）：
+   Cron 節點（每 6 小時執行）
+     ↓
+   Supabase 節點（查詢未付款訂單）
+     ↓
+   Function 節點（計算時間差）
+     ↓
+   IF 節點（判斷提醒時機）
+     ├─ 12小時未付 → LINE 節點（第一次提醒）
+     ├─ 24小時未付 → LINE 節點（第二次提醒）
+     ├─ 48小時未付 → LINE 節點（最後提醒）
+     └─ 已付或未到時機 → 結束
+
+2. Supabase 查詢條件：
+   SELECT * FROM orders
+   WHERE 
+     payment_status = 'pending'
+     AND created_at < NOW() - INTERVAL '12 hours'
+     AND reminder_count < 3;
+
+3. Function 節點計算提醒時間：
+   const orderTime = new Date(item.json.created_at);
+   const now = new Date();
+   const hoursDiff = (now - orderTime) / (1000 * 60 * 60);
+   
+   let reminderType = null;
+   if (hoursDiff >= 48) {
+     reminderType = 'final';
+   } else if (hoursDiff >= 24) {
+     reminderType = 'second';
+   } else if (hoursDiff >= 12) {
+     reminderType = 'first';
+   }
+   
+   return [{ json: { ...item.json, reminderType, hoursDiff } }];
+
+4. LINE 提醒訊息（LINE 推播節點）：
+   - 第一次提醒（12小時）：
+   ⏰ 付款提醒
+   
+   您的訂單 #{{order_id}} 尚未付款
+   金額：{{order_amount}}
+   請點擊連結完成付款：{{payment_link}}
+
+   - 第二次提醒（24小時）：
+   ⚠️ 重要提醒
+   
+   您的訂單 #{{order_id}} 即將逾期
+   請在 24 小時內完成付款：{{payment_link}}
+
+   - 最後提醒（48小時）：
+   🔴 最後提醒
+   
+   您的訂單 #{{order_id}} 將在 24 小時後取消
+   請立即完成付款：{{payment_link}}
+
+5. 更新提醒計數（Supabase 節點）：
+   UPDATE orders
+   SET 
+     reminder_count = reminder_count + 1,
+     last_reminder_at = NOW()
+   WHERE id = {{order_id}};
+
+🔄 **執行節點位置**：
+- ⏰ **Cron 節點**（每 6 小時）→ 步驟 30 (部署驗證) - Cron 整合
+- 💾 **Supabase 節點**（查詢訂單）→ 步驟 24 (資料庫效能)
+- 📱 **LINE 推播節點**（發送提醒）→ 步驟 55（同步驟）
+
+🔗 **相關步驟**：
+- 資料庫查詢 → 步驟 24
+- LINE 推播設定 → 步驟 55（同步驟）`,
+          verify: `測試付款提醒：
+1. 建立測試訂單（未付款）
+2. 等待或手動觸發 Cron
+3. 確認收到提醒訊息
+4. 檢查提醒計數是否更新
+5. 測試不同時間點的提醒`
+        }
+      }
+    ]
+  },
+  {
+    id: 56,
+    title: "n8n 內容管理自動化",
+    shortTitle: "內容自動化",
+    purpose: "實作內容發佈的自動化流程，包含文章發佈通知、圖片處理、網站統計收集、SEO 優化等。",
+    badge: "common",
+    category: "n8n",
+    keywords: ["n8n", "content", "cms", "publish", "image", "analytics", "content-flow"],
+    checklist: [
+      { id: "56-1", label: "監聽內容發佈事件", completed: false },
+      { id: "56-2", label: "實作發佈通知（Email/LINE）", completed: false },
+      { id: "56-3", label: "自動處理圖片（壓縮/轉換）", completed: false },
+      { id: "56-4", label: "同步到社群媒體", completed: false },
+      { id: "56-5", label: "更新網站統計", completed: false },
+    ],
+    prompts: [
+      {
+        id: "p56-1",
+        title: "1. 內容發佈通知",
+        description: "實作新內容發佈時的自動通知",
+        keywords: ["content", "publish", "notification"],
+        prompts: {
+          diagnostic: `檢查內容發佈監聽：
+1. Webhook 或資料庫監聽是否設定
+2. 發佈事件是否正確觸發
+3. 通知是否成功發送`,
+          fix: `【Cursor 自動化指令】實作內容發佈自動化
+
+1. 監聽內容發佈事件：
+   方式一：使用 Supabase Webhook
+   - Database → Webhooks → Create
+   - Event: posts (INSERT)
+   - URL: {{n8n_webhook_url}}
+
+   方式二：使用 RSS Feed
+   - RSS Read 節點（監聽 RSS Feed）
+   - 定期檢查新文章
+
+2. 發佈通知流程：
+   Webhook/RSS 節點
+     ↓
+   Function 節點（處理內容資料）
+     ↓
+   Split In Batches（並行處理）
+     ├─→ Email 節點（發送給訂閱者）
+     ├─→ LINE 節點（推播通知）
+     └─→ HTTP Request（同步到社群媒體）
+
+🔗 **可串接功能**：
+- 📧 Email 通知 → 步驟 12 (Email 自動化)
+- 💬 LINE 推播 → 步驟 36 (LINE 推播)
+- 📱 社群同步 → 步驟 40 (社交媒體整合)
+- 📊 統計更新 → 步驟 48 (行為追蹤)`,
+          verify: `測試內容發佈流程：
+1. 發佈新文章
+2. 確認收到通知
+3. 檢查社群同步
+4. 驗證統計更新`
+        }
+      }
+    ]
+  },
+  {
+    id: 57,
+    title: "n8n 網站監控與維護",
+    shortTitle: "網站監控",
+    purpose: "實作網站健康檢查、定期備份通知、自動更新檢查等網站監控與維護自動化流程。",
+    badge: "common",
+    category: "n8n",
+    keywords: ["n8n", "monitoring", "health", "check", "backup", "maintenance"],
+    checklist: [
+      { id: "57-1", label: "設定網站健康檢查", completed: false },
+      { id: "57-2", label: "實作異常告警通知", completed: false },
+      { id: "57-3", label: "定期備份狀態檢查", completed: false },
+      { id: "57-4", label: "套件更新檢查", completed: false },
+      { id: "57-5", label: "設定監控告警", completed: false },
+    ],
+    prompts: [
+      {
+        id: "p57-1",
+        title: "1. 網站健康檢查",
+        description: "使用 Cron 節點定期檢查網站健康狀態",
+        keywords: ["health", "check", "monitoring"],
+        prompts: {
+          diagnostic: `檢查健康檢查設定：
+1. Cron 節點是否正確設定
+2. 健康檢查端點是否正常
+3. 告警是否正確觸發`,
+          fix: `【Cursor 自動化指令】實作網站健康檢查
+
+1. 建立健康檢查流程：
+   Cron 節點（每 5 分鐘執行）
+     ↓
+   HTTP Request 節點（檢查網站）
+     ↓
+   IF 節點（判斷健康狀態）
+     ├─ 正常 → 結束
+     └─ 異常 → 發送告警
+
+2. HTTP Request 節點設定：
+   - Method: GET
+   - URL: {{website_url}}/api/health
+   - Response Code: 200
+   - Timeout: 5000ms
+
+3. 異常告警（IF 節點後）：
+   IF 節點（狀態碼 != 200）
+     ↓
+   Split In Batches（並行發送）
+     ├─→ Email 節點（告警 Email）
+     ├─→ LINE 節點（LINE 告警）
+     └─→ Slack 節點（Slack 告警）
+
+🔗 **可串接功能**：
+- ⚠️ 告警通知 → 步驟 36 (Slack/LINE 通知)
+- 📧 Email 告警 → 步驟 12 (Email 自動化)
+- 💾 備份檢查 → 步驟 23 (資料庫備份)`,
+          verify: `測試健康檢查：
+1. 手動觸發健康檢查
+2. 測試正常情況
+3. 模擬異常情況
+4. 確認告警是否發送`
         }
       }
     ]
