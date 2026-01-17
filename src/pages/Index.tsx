@@ -99,7 +99,8 @@ const Index = () => {
       setCurrentStep(stepsData[currentIndex - 1].id);
       setTone("diagnostic");
     }
-  }, [currentStep, stepsData]);
+     
+  }, [currentStep]);
 
   const handleNextStep = useCallback(() => {
     const currentIndex = stepsData.findIndex((s) => s.id === currentStep);
@@ -107,7 +108,8 @@ const Index = () => {
       setCurrentStep(stepsData[currentIndex + 1].id);
       setTone("diagnostic");
     }
-  }, [currentStep, stepsData]);
+     
+  }, [currentStep]);
 
   const handleCompleteStep = useCallback(() => {
     if (!completedSteps.includes(currentStep)) {
