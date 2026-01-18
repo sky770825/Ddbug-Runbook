@@ -10554,6 +10554,7 @@ COMMENT ON POLICY "Users can read from {{folder_name}} folder" ON storage.object
       { id: "61-4", label: "檢查 Cloudflare CLI (Wrangler)", completed: false },
       { id: "61-5", label: "檢查 Git 設定", completed: false },
       { id: "61-6", label: "驗證所有工具設定正確", completed: false },
+      { id: "61-7", label: "在自己的專案中集成自動化腳本", completed: false },
     ],
     prompts: [
       {
@@ -11009,6 +11010,194 @@ COMMENT ON POLICY "Users can read from {{folder_name}} folder" ON storage.object
    echo "登入狀態: $(npx wrangler whoami 2>&1 | grep -q 'email' && echo '已登入' || echo '未登入')"
      echo "Account ID: $CLOUDFLARE_ACCOUNT_ID"
      echo "API Token: $CLOUDFLARE_API_TOKEN"`
+        }
+      },
+      {
+        id: "p61-5",
+        title: "5. 在自己的專案中集成自動化腳本",
+        description: "學習如何在自己的課程專案中集成這些自動化腳本，並使用 CLI 指令自動執行",
+        keywords: ["integration", "scripts", "automation", "cli", "project", "setup", "custom"],
+        variables: [
+          {
+            key: "project_name",
+            label: "您的專案名稱",
+            placeholder: "例如：my-course-project",
+            description: "您的專案名稱（用於自訂腳本中的專案名稱）"
+          },
+          {
+            key: "project_type",
+            label: "專案類型",
+            placeholder: "例如：react, vite, next.js",
+            description: "您的專案類型（用於調整建置命令）"
+          }
+        ],
+        prompts: {
+          diagnostic: `【Cursor 自動化指令】檢查專案中是否已集成自動化腳本
+
+請自動執行以下檢查：
+
+1. 檢查 scripts 目錄是否存在：
+   test -d scripts && echo "✓ scripts 目錄存在" || echo "✗ scripts 目錄不存在"
+
+2. 檢查必要的腳本檔案是否存在：
+   test -f scripts/init.cjs && echo "✓ init.cjs 存在" || echo "✗ init.cjs 不存在"
+   test -f scripts/fetch-keys.cjs && echo "✓ fetch-keys.cjs 存在" || echo "✗ fetch-keys.cjs 不存在"
+   test -f scripts/setup-env.cjs && echo "✓ setup-env.cjs 存在" || echo "✗ setup-env.cjs 不存在"
+   test -f scripts/health-check.cjs && echo "✓ health-check.cjs 存在" || echo "✗ health-check.cjs 不存在"
+
+3. 檢查 package.json 中是否已添加自動化腳本：
+   grep -q "\"init\"" package.json 2>/dev/null && echo "✓ npm run init 已設定" || echo "✗ npm run init 未設定"
+   grep -q "\"fetch-keys\"" package.json 2>/dev/null && echo "✓ npm run fetch-keys 已設定" || echo "✗ npm run fetch-keys 未設定"
+   grep -q "\"setup-env\"" package.json 2>/dev/null && echo "✓ npm run setup-env 已設定" || echo "✗ npm run setup-env 未設定"
+
+4. 檢查 .env.example 是否存在：
+   test -f .env.example && echo "✓ .env.example 存在" || echo "✗ .env.example 不存在"
+
+5. 檢查 .gitignore 是否包含自動化檔案：
+   grep -q ".automation-keys.json" .gitignore 2>/dev/null && echo "✓ .gitignore 已保護自動化檔案" || echo "✗ .gitignore 未保護自動化檔案"`,
+          fix: `【Cursor 自動化指令】在自己的專案中集成自動化腳本
+
+請按照以下步驟，自動將這些自動化腳本集成到您的專案中：
+
+1. 建立 scripts 目錄（如果不存在）：
+   mkdir -p scripts
+   echo "✓ scripts 目錄已建立"
+
+2. 複製所有必要的腳本檔案到您的專案：
+
+   # 方式一：從這個範例專案複製（如果您有存取權限）
+   # cp /path/to/template-project/scripts/*.cjs ./scripts/
+   
+   # 方式二：手動建立（以下提供關鍵腳本的建立方式）
+   
+   # 建立 init.cjs（專案初始化腳本）
+   cat > scripts/init.cjs << 'EOFSCRIPT'
+   #!/usr/bin/env node
+   // 專案初始化腳本
+   // 參考：檢查 Node.js、安裝依賴、檢查 CLI 工具等
+   console.log('🚀 開始專案初始化...');
+   // ...（複製 init.cjs 的完整內容）
+   EOFSCRIPT
+   
+   # 建立 fetch-keys.cjs（取得 API Keys）
+   # 建立 setup-env.cjs（設定環境變數）
+   # 建立 health-check.cjs（健康檢查）
+   # 建立其他必要的腳本
+
+3. 設定腳本為可執行：
+   chmod +x scripts/*.cjs
+   echo "✓ 腳本權限已設定"
+
+4. 在 package.json 中添加自動化腳本：
+
+   # 檢查 package.json 是否存在
+   if [ -f package.json ]; then
+     # 使用 jq 添加腳本（如果已安裝）
+     # 或手動編輯 package.json
+     echo "📝 請在 package.json 的 scripts 區塊中添加："
+     echo ""
+     echo '"scripts": {'
+     echo '  "init": "node scripts/init.cjs",'
+     echo '  "fetch-keys": "node scripts/fetch-keys.cjs",'
+     echo '  "setup-env": "node scripts/setup-env.cjs",'
+     echo '  "health": "node scripts/health-check.cjs",'
+     echo '  "deploy:cloudflare": "node scripts/deploy-cloudflare.cjs deploy",'
+     echo '  "deploy:status": "node scripts/deploy-cloudflare.cjs status"'
+     echo '}'
+   fi
+
+5. 建立 .env.example 模板（如果不存在）：
+   test -f .env.example || cat > .env.example << 'EOFENV'
+   # 環境變數範本
+   # 複製為 .env.local 並填入實際值
+   NEXT_PUBLIC_SUPABASE_URL=https://xxxxx.supabase.co
+   NEXT_PUBLIC_SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+   SUPABASE_SERVICE_ROLE_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+   EOFENV
+   echo "✓ .env.example 已建立"
+
+6. 更新 .gitignore（確保自動化檔案不被提交）：
+   cat >> .gitignore << 'EOFGIT'
+   # 自動化腳本產生的檔案
+   .automation-keys.json
+   .env.local
+   scripts/*.log
+   EOFGIT
+   echo "✓ .gitignore 已更新"
+
+7. 自訂專案設定（根據您的專案類型調整）：
+   # 如果專案類型是 {{project_type}}，調整建置命令
+   # 在 scripts/setup-env.cjs 中根據專案類型調整環境變數
+
+8. 產生集成報告：
+   echo ""
+   echo "=== 自動化腳本集成報告 ==="
+   echo "✓ scripts 目錄：$(test -d scripts && echo '已建立' || echo '未建立')"
+   echo "✓ 腳本檔案數量：$(ls scripts/*.cjs 2>/dev/null | wc -l | xargs) 個"
+   echo "✓ package.json 腳本：$(grep -c 'scripts' package.json 2>/dev/null || echo 0) 個"
+   echo ""
+   echo "📋 下一步："
+   echo "   1. 執行 npm run init 進行初始化"
+   echo "   2. 執行 npm run fetch-keys 取得 API Keys"
+   echo "   3. 執行 npm run setup-env 設定環境變數"
+   echo "   4. 執行 npm run health 檢查專案狀態"`,
+          verify: `【Cursor 自動化指令】驗證自動化腳本已正確集成
+
+請自動執行以下驗證：
+
+1. 驗證腳本檔案完整性：
+   test -f scripts/init.cjs && echo "✓ init.cjs 存在且可執行: $(test -x scripts/init.cjs && echo '是' || echo '否')" || echo "✗ init.cjs 不存在"
+   test -f scripts/fetch-keys.cjs && echo "✓ fetch-keys.cjs 存在且可執行: $(test -x scripts/fetch-keys.cjs && echo '是' || echo '否')" || echo "✗ fetch-keys.cjs 不存在"
+   test -f scripts/setup-env.cjs && echo "✓ setup-env.cjs 存在且可執行: $(test -x scripts/setup-env.cjs && echo '是' || echo '否')" || echo "✗ setup-env.cjs 不存在"
+   test -f scripts/health-check.cjs && echo "✓ health-check.cjs 存在且可執行: $(test -x scripts/health-check.cjs && echo '是' || echo '否')" || echo "✗ health-check.cjs 不存在"
+
+2. 驗證 package.json 腳本設定：
+   grep -q "\"init\"" package.json 2>/dev/null && echo "✓ npm run init 已設定" || echo "✗ npm run init 未設定"
+   grep -q "\"fetch-keys\"" package.json 2>/dev/null && echo "✓ npm run fetch-keys 已設定" || echo "✗ npm run fetch-keys 未設定"
+   grep -q "\"setup-env\"" package.json 2>/dev/null && echo "✓ npm run setup-env 已設定" || echo "✗ npm run setup-env 未設定"
+   grep -q "\"health\"" package.json 2>/dev/null && echo "✓ npm run health 已設定" || echo "✗ npm run health 未設定"
+
+3. 測試腳本是否可以正常執行（不執行實際操作，只檢查語法）：
+   for script in scripts/*.cjs; do
+     if [ -f "$script" ]; then
+       node --check "$script" 2>&1 && echo "✓ $(basename $script) 語法正確" || echo "✗ $(basename $script) 語法錯誤"
+     fi
+   done
+
+4. 檢查檔案保護設定：
+   if grep -q ".automation-keys.json" .gitignore 2>/dev/null; then
+     echo "✓ .automation-keys.json 已在 .gitignore 中"
+   else
+     echo "⚠️  .automation-keys.json 未在 .gitignore 中（建議添加）"
+   fi
+   
+   if grep -q ".env.local" .gitignore 2>/dev/null; then
+     echo "✓ .env.local 已在 .gitignore 中"
+   else
+     echo "⚠️  .env.local 未在 .gitignore 中（建議添加）"
+   fi
+
+5. 產生集成驗證報告：
+   echo ""
+   echo "=== 自動化腳本集成驗證報告 ==="
+   echo "腳本檔案：$(ls scripts/*.cjs 2>/dev/null | wc -l | xargs) 個"
+   echo "npm 腳本：$(grep -c '".*": "node scripts' package.json 2>/dev/null || echo 0) 個"
+   echo ""
+   echo "📋 使用範例："
+   echo "   # 1. 初始化專案"
+   echo "   npm run init"
+   echo ""
+   echo "   # 2. 取得 API Keys"
+   echo "   npm run fetch-keys {{supabase_ref}}"
+   echo ""
+   echo "   # 3. 設定環境變數"
+   echo "   npm run setup-env"
+   echo ""
+   echo "   # 4. 健康檢查"
+   echo "   npm run health"
+   echo ""
+   echo "   # 5. 部署到 Cloudflare（如果有 deploy-cloudflare.cjs）"
+   echo "   npm run deploy:cloudflare"`
         }
       }
     ],
