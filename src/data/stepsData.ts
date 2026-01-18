@@ -10537,6 +10537,498 @@ COMMENT ON POLICY "Users can read from {{folder_name}} folder" ON storage.object
         tags: ["資料庫", "RLS", "安全性"]
       }
     ]
+  },
+  // ===== CLI 自動化環境建置 =====
+  {
+    id: 61,
+    title: "CLI 自動化環境建置",
+    shortTitle: "環境建置",
+    purpose: "統一管理所有 CLI 工具（Supabase、GitHub、Cloudflare、npm 等），自動檢查安裝狀態、登入狀態，提供統一的環境設定和自動化流程。",
+    badge: "critical",
+    category: "development",
+    keywords: ["cli", "automation", "environment", "setup", "supabase", "github", "cloudflare", "npm", "tools", "init"],
+    checklist: [
+      { id: "61-1", label: "檢查 Supabase CLI 安裝和登入狀態", completed: false },
+      { id: "61-2", label: "檢查 Node.js 和 npm 版本", completed: false },
+      { id: "61-3", label: "檢查 GitHub CLI（如果需要）", completed: false },
+      { id: "61-4", label: "檢查 Cloudflare CLI (Wrangler)", completed: false },
+      { id: "61-5", label: "檢查 Git 設定", completed: false },
+      { id: "61-6", label: "驗證所有工具設定正確", completed: false },
+    ],
+    prompts: [
+      {
+        id: "p61-1",
+        title: "1. 檢查自動化環境狀態",
+        description: "自動檢查所有 CLI 工具的安裝和設定狀態",
+        keywords: ["check", "status", "version", "login"],
+        variables: [
+          {
+            key: "supabase_ref",
+            label: "Supabase Project Reference",
+            placeholder: "例如：abcdefghijklmnop",
+            description: "您的 Supabase 專案 Reference ID（可選，如果需要自動連接）"
+          },
+          {
+            key: "git_user_name",
+            label: "Git 使用者名稱",
+            placeholder: "例如：Your Name",
+            description: "Git 使用者名稱（可選，如果需要自動設定）"
+          },
+          {
+            key: "git_user_email",
+            label: "Git 使用者 Email",
+            placeholder: "例如：your@email.com",
+            description: "Git 使用者 Email（可選，如果需要自動設定）"
+          }
+        ],
+        prompts: {
+          diagnostic: `【Cursor 自動化指令】檢查自動化環境設定
+
+請自動執行以下檢查：
+
+1. 檢查 Supabase CLI：
+   npx supabase --version || echo "✗ Supabase CLI 未安裝"
+   npx supabase projects list 2>&1 | head -5 || echo "✗ Supabase 未登入或未連接"
+
+2. 檢查 Node.js 和 npm：
+   node --version || echo "✗ Node.js 未安裝"
+   npm --version || echo "✗ npm 未安裝"
+   npm list --depth=0 2>&1 | head -20 || echo "✗ 專案依賴可能未完整安裝"
+
+3. 檢查 GitHub CLI（可選）：
+   gh --version 2>&1 || echo "✗ GitHub CLI 未安裝"
+   gh auth status 2>&1 || echo "✗ GitHub CLI 未登入"
+
+4. 檢查 Cloudflare CLI (Wrangler)：
+   npx wrangler --version 2>&1 || echo "✗ Cloudflare CLI 未安裝"
+   npx wrangler whoami 2>&1 || echo "✗ Cloudflare CLI 未登入"
+
+5. 檢查 Git 設定：
+   git --version || echo "✗ Git 未安裝"
+   git config user.name || echo "✗ Git user.name 未設定"
+   git config user.email || echo "✗ Git user.email 未設定"
+
+6. 檢查專案環境變數：
+   test -f .env.local && echo "✓ .env.local 檔案存在" || echo "✗ .env.local 檔案不存在"
+   test -f .automation-keys.json && echo "✓ .automation-keys.json 存在" || echo "✗ .automation-keys.json 不存在"
+
+7. 產生環境報告：
+   echo "=== 自動化環境檢查報告 ==="
+   echo "Supabase CLI: $(npx supabase --version 2>&1 | head -1 || echo '未安裝')"
+   echo "Node.js: $(node --version 2>&1 || echo '未安裝')"
+   echo "npm: $(npm --version 2>&1 || echo '未安裝')"
+   echo "Git: $(git --version 2>&1 | head -1 || echo '未安裝')"
+   echo "GitHub CLI: $(gh --version 2>&1 | head -1 || echo '未安裝')"
+   echo "Cloudflare CLI: $(npx wrangler --version 2>&1 | head -1 || echo '未安裝')"`,
+          fix: `【Cursor 自動化指令】自動建置自動化環境
+
+請自動執行以下操作：
+
+1. 執行專案初始化腳本（推薦）：
+   npm run init
+   
+   或手動執行以下步驟：
+
+2. 檢查 Node.js 版本：
+   node scripts/check-node-version.js || echo "⚠️  Node.js 版本不符合要求"
+
+3. 安裝 Supabase CLI（如果未安裝）：
+   npx supabase --version || npm install -g supabase
+   echo "✓ Supabase CLI 檢查完成"
+
+4. 登入 Supabase（如果需要）：
+   npx supabase login || echo "⚠️  請手動執行: npx supabase login"
+
+5. 連接 Supabase 專案（如果提供了 Project Reference）：
+   if [ -n "{{supabase_ref}}" ]; then
+     npx supabase link --project-ref {{supabase_ref}} || echo "⚠️  請確認 Project Reference 是否正確"
+   else
+     echo "ℹ️ 未提供 Supabase Project Reference，跳過自動連接"
+   fi
+
+6. 檢查 Node.js 和 npm（如果未安裝，提示安裝）：
+   node --version || echo "⚠️  請安裝 Node.js: https://nodejs.org/"
+   npm --version || echo "⚠️  請安裝 npm（通常包含在 Node.js 中）"
+
+7. 安裝專案依賴（如果未安裝）：
+   if [ ! -d "node_modules" ]; then
+     npm install && echo "✓ 專案依賴安裝完成" || echo "✗ 專案依賴安裝失敗"
+   else
+     echo "✓ 專案依賴已存在"
+   fi
+
+8. 安裝 GitHub CLI（如果需要）：
+   # macOS
+   if [[ "$OSTYPE" == "darwin"* ]]; then
+     if ! command -v gh &> /dev/null; then
+       brew install gh || echo "⚠️  請手動安裝: brew install gh"
+     fi
+   else
+     npm install -g gh || echo "⚠️  請手動安裝 GitHub CLI"
+   fi
+
+9. 登入 GitHub CLI（如果需要）：
+   gh auth login || echo "⚠️  請手動執行: gh auth login"
+
+10. 檢查 Cloudflare CLI (Wrangler)：
+    npx wrangler --version || echo "⚠️  Wrangler 未安裝（可選）"
+    npx wrangler login || echo "⚠️  請手動執行: npx wrangler login"
+
+11. 設定 Git（如果未設定且提供了資訊）：
+    if [ -n "{{git_user_name}}" ]; then
+      git config --global user.name "{{git_user_name}}" || true
+    fi
+    if [ -n "{{git_user_email}}" ]; then
+      git config --global user.email "{{git_user_email}}" || true
+    fi
+
+12. 產生設定報告：
+    echo "=== 自動化環境建置報告 ==="
+    echo "請檢查上述輸出，確認所有工具是否正確設定"`,
+          verify: `【Cursor 自動化指令】驗證自動化環境設定
+
+請自動執行以下驗證：
+
+1. 驗證 Supabase CLI：
+   SUPABASE_VERSION=$(npx supabase --version 2>&1 | head -1)
+   if [ -n "$SUPABASE_VERSION" ]; then
+     echo "✓ Supabase CLI 已安裝: $SUPABASE_VERSION"
+   else
+     echo "✗ Supabase CLI 未安裝"
+   fi
+   
+   if npx supabase projects list 2>&1 | grep -q "Projects"; then
+     echo "✓ Supabase 已登入"
+   else
+     echo "✗ Supabase 未登入，請執行: npx supabase login"
+   fi
+
+2. 驗證 Node.js 環境：
+   NODE_VERSION=$(node --version 2>&1)
+   NPM_VERSION=$(npm --version 2>&1)
+   if [ -n "$NODE_VERSION" ]; then
+     echo "✓ Node.js 已安裝: $NODE_VERSION"
+   else
+     echo "✗ Node.js 未安裝"
+   fi
+   if [ -n "$NPM_VERSION" ]; then
+     echo "✓ npm 已安裝: $NPM_VERSION"
+   else
+     echo "✗ npm 未安裝"
+   fi
+
+3. 驗證 GitHub CLI（如果已安裝）：
+   GH_VERSION=$(gh --version 2>&1 | head -1)
+   if [ -n "$GH_VERSION" ]; then
+     echo "✓ GitHub CLI 已安裝: $GH_VERSION"
+     if gh auth status 2>&1 | grep -q "Logged in"; then
+       echo "✓ GitHub CLI 已登入"
+     else
+       echo "⚠️  GitHub CLI 未登入（可選）"
+     fi
+   else
+     echo "ℹ️  GitHub CLI 未安裝（可選工具）"
+   fi
+
+4. 驗證 Cloudflare CLI：
+   WRANGLER_VERSION=$(npx wrangler --version 2>&1 | head -1)
+   if [ -n "$WRANGLER_VERSION" ]; then
+     echo "✓ Cloudflare CLI 已安裝: $WRANGLER_VERSION"
+     if npx wrangler whoami 2>&1 | grep -q "email"; then
+       echo "✓ Cloudflare CLI 已登入"
+     else
+       echo "⚠️  Cloudflare CLI 未登入（可選）"
+     fi
+   else
+     echo "ℹ️  Cloudflare CLI 未安裝（可選工具）"
+   fi
+
+5. 驗證 Git 設定：
+   GIT_VERSION=$(git --version 2>&1)
+   GIT_NAME=$(git config user.name 2>&1)
+   GIT_EMAIL=$(git config user.email 2>&1)
+   
+   if [ -n "$GIT_VERSION" ]; then
+     echo "✓ Git 已安裝: $GIT_VERSION"
+   else
+     echo "✗ Git 未安裝"
+   fi
+   
+   if [ -n "$GIT_NAME" ]; then
+     echo "✓ Git user.name 已設定: $GIT_NAME"
+   else
+     echo "⚠️  Git user.name 未設定"
+   fi
+   
+   if [ -n "$GIT_EMAIL" ]; then
+     echo "✓ Git user.email 已設定: $GIT_EMAIL"
+   else
+     echo "⚠️  Git user.email 未設定"
+   fi
+
+6. 驗證專案依賴：
+   if [ -d "node_modules" ]; then
+     echo "✓ 專案依賴已安裝"
+     npm list --depth=0 2>&1 | head -10
+   else
+     echo "✗ 專案依賴未安裝，請執行: npm install"
+   fi
+
+7. 執行健康檢查：
+   npm run health || echo "⚠️  健康檢查失敗"
+
+8. 產生最終報告：
+   echo ""
+   echo "=== 環境驗證完成 ==="
+   echo "請確認所有必要的工具都已正確設定"
+   echo "如有缺失，請參考上述輸出進行修正"`
+        }
+      },
+      {
+        id: "p61-2",
+        title: "2. 自動取得 API Keys",
+        description: "使用自動化腳本取得所有需要的 API Keys",
+        keywords: ["keys", "api", "tokens", "secrets", "fetch"],
+        prompts: {
+          diagnostic: `【Cursor 自動化指令】檢查 API Keys 狀態
+
+請自動執行以下檢查：
+
+1. 檢查 .automation-keys.json 檔案是否存在：
+   test -f .automation-keys.json && echo "✓ Keys 設定檔存在" || echo "✗ Keys 設定檔不存在"
+
+2. 檢查 .env.local 檔案是否存在：
+   test -f .env.local && echo "✓ .env.local 檔案存在" || echo "✗ .env.local 檔案不存在"
+
+3. 檢查必要的 Keys 是否已設定：
+   # 檢查 Supabase Keys
+   grep -q "SUPABASE_ANON_KEY" .automation-keys.json 2>/dev/null && echo "✓ Supabase Anon Key 已設定" || echo "✗ Supabase Anon Key 未設定"
+   grep -q "SUPABASE_SERVICE_ROLE_KEY" .automation-keys.json 2>/dev/null && echo "✓ Supabase Service Role Key 已設定" || echo "✗ Supabase Service Role Key 未設定"
+   
+   # 檢查其他 Keys
+   grep -q "RESEND_API_KEY" .automation-keys.json 2>/dev/null && echo "✓ Resend API Key 已設定" || echo "✗ Resend API Key 未設定"
+   grep -q "LINE_CHANNEL_ACCESS_TOKEN" .automation-keys.json 2>/dev/null && echo "✓ LINE Access Token 已設定" || echo "✗ LINE Access Token 未設定"`,
+          fix: `【Cursor 自動化指令】自動取得 API Keys
+
+請自動執行以下操作：
+
+1. 執行自動化腳本取得 Keys：
+   npm run fetch-keys {{supabase_ref}} || node scripts/fetch-keys.js {{supabase_ref}}
+
+2. 腳本會自動：
+   - 使用 Supabase CLI 取得 Supabase Keys
+   - 使用 GitHub CLI 取得 GitHub Token
+   - 互動式取得其他平台的 Keys
+   - 自動儲存到 .automation-keys.json 和 .env.local
+
+3. 如果腳本不存在，請先建立：
+   # 建立 scripts 目錄
+   mkdir -p scripts
+   
+   # 建立腳本檔案（參考 AUTO_FETCH_KEYS.md）
+
+4. 取得 Keys 後，執行環境變數設定：
+   npm run setup-env`,
+          verify: `【Cursor 自動化指令】驗證 API Keys 已取得
+
+請自動執行以下驗證：
+
+1. 檢查 .automation-keys.json 檔案：
+   cat .automation-keys.json | jq '.' 2>/dev/null || echo "檔案不存在或格式錯誤"
+
+2. 驗證 Keys 格式：
+   # 檢查 Supabase Anon Key 格式
+   grep "supabase_anon_key" .automation-keys.json | grep -q "eyJ" && echo "✓ Supabase Anon Key 格式正確" || echo "✗ Supabase Anon Key 格式可能有誤"
+   
+   # 檢查 Resend API Key 格式
+   grep "resend_api_key" .automation-keys.json | grep -q "re_" && echo "✓ Resend API Key 格式正確" || echo "✗ Resend API Key 格式可能有誤"
+
+3. 檢查 .env.local 檔案是否已更新：
+   grep -q "SUPABASE_ANON_KEY" .env.local && echo "✓ .env.local 已更新" || echo "✗ .env.local 未更新"
+
+4. 產生 Keys 狀態報告：
+   echo "=== API Keys 狀態報告 ==="
+   echo "Supabase Keys: $(grep -c "supabase" .automation-keys.json 2>/dev/null || echo 0) 個"
+   echo "其他 Keys: $(grep -v "supabase" .automation-keys.json 2>/dev/null | grep -c ":" || echo 0) 個"`
+        }
+      },
+      {
+        id: "p61-3",
+        title: "3. 自動設定環境變數",
+        description: "自動生成 .env 檔案並設定到不同環境",
+        keywords: ["env", "environment", "variables", "setup", "config"],
+        prompts: {
+          diagnostic: `【Cursor 自動化指令】檢查環境變數設定
+
+請自動執行以下檢查：
+
+1. 檢查 .env.local 檔案是否存在：
+   test -f .env.local && echo "✓ .env.local 存在" || echo "✗ .env.local 不存在"
+
+2. 檢查必要的環境變數：
+   # 檢查 Supabase 環境變數
+   grep -q "NEXT_PUBLIC_SUPABASE_URL" .env.local 2>/dev/null && echo "✓ SUPABASE_URL 已設定" || echo "✗ SUPABASE_URL 未設定"
+   grep -q "NEXT_PUBLIC_SUPABASE_ANON_KEY" .env.local 2>/dev/null && echo "✓ SUPABASE_ANON_KEY 已設定" || echo "✗ SUPABASE_ANON_KEY 未設定"
+   grep -q "SUPABASE_SERVICE_ROLE_KEY" .env.local 2>/dev/null && echo "✓ SUPABASE_SERVICE_ROLE_KEY 已設定" || echo "✗ SUPABASE_SERVICE_ROLE_KEY 未設定"
+
+3. 檢查環境變數格式：
+   # 檢查 Supabase URL 格式
+   grep "NEXT_PUBLIC_SUPABASE_URL" .env.local 2>/dev/null | grep -q "https://.*.supabase.co" && echo "✓ URL 格式正確" || echo "✗ URL 格式可能有誤"
+
+4. 產生環境變數狀態報告：
+   echo "=== 環境變數狀態 ==="
+   echo "已設定: $(grep -c "^[A-Z]" .env.local 2>/dev/null || echo 0) 個"
+   echo "缺失: $(grep -c "請填入" .env.local 2>/dev/null || echo 0) 個"`,
+          fix: `【Cursor 自動化指令】自動設定環境變數
+
+請自動執行以下操作：
+
+1. 執行環境變數設定腳本：
+   npm run setup-env || node scripts/setup-env.js
+
+2. 腳本會自動：
+   - 從 .automation-keys.json 讀取 Keys
+   - 生成 .env.local 檔案
+   - 自動填入已知的 Keys
+   - 驗證環境變數格式
+   - 提示缺失的環境變數
+
+3. 如果腳本不存在，請先建立：
+   # 建立 scripts 目錄
+   mkdir -p scripts
+   
+   # 建立腳本檔案（參考 AUTO_ENV_SETUP.md）
+
+4. 設定到 Supabase Secrets（如果需要）：
+   npm run setup-env -- --supabase
+
+5. 設定到 GitHub Secrets（如果需要）：
+   npm run setup-env -- --github`,
+          verify: `【Cursor 自動化指令】驗證環境變數設定
+
+請自動執行以下驗證：
+
+1. 檢查 .env.local 檔案：
+   cat .env.local | head -20
+
+2. 驗證環境變數格式：
+   npm run validate-env || node scripts/validate-env.js
+
+3. 檢查缺失的環境變數：
+   grep "請填入" .env.local && echo "⚠️  仍有環境變數需要填入" || echo "✓ 所有環境變數已填入"
+
+4. 測試環境變數是否生效：
+   # 在應用程式中測試
+   node -e "require('dotenv').config({ path: '.env.local' }); console.log('SUPABASE_URL:', process.env.NEXT_PUBLIC_SUPABASE_URL ? '已設定' : '未設定');"`
+        }
+      },
+      {
+        id: "p61-4",
+        title: "4. Cloudflare CLI (Wrangler) 設定",
+        description: "檢查和設定 Cloudflare CLI 用於 Pages 部署",
+        keywords: ["cloudflare", "wrangler", "pages", "deploy", "cli"],
+        prompts: {
+          diagnostic: `【Cursor 自動化指令】檢查 Cloudflare CLI 設定
+
+請自動執行以下檢查：
+
+1. 檢查 Wrangler 是否已安裝：
+   npx wrangler --version || echo "✗ Wrangler 未安裝"
+
+2. 檢查是否已登入：
+   npx wrangler whoami 2>&1 || echo "✗ 未登入 Cloudflare"
+
+3. 檢查 Cloudflare API Token（如果已設定）：
+   echo $CLOUDFLARE_API_TOKEN | head -c 10 && echo "..." || echo "✗ CLOUDFLARE_API_TOKEN 未設定"
+
+4. 檢查 Cloudflare Account ID（如果已設定）：
+   echo $CLOUDFLARE_ACCOUNT_ID || echo "✗ CLOUDFLARE_ACCOUNT_ID 未設定"
+
+5. 檢查 Pages 專案（如果已連接）：
+   npx wrangler pages project list 2>&1 | head -10 || echo "✗ 無法列出專案（可能需要登入）"`,
+          fix: `【Cursor 自動化指令】自動設定 Cloudflare CLI
+
+請自動執行以下操作：
+
+1. 安裝 Wrangler（如果未安裝）：
+   npm install -g wrangler || npm install -D wrangler
+   echo "✓ Wrangler 安裝完成"
+
+2. 登入 Cloudflare（如果需要）：
+   npx wrangler login || echo "⚠️  請手動執行: npx wrangler login"
+   # 這會開啟瀏覽器進行認證
+
+3. 取得 Cloudflare Account ID：
+   # 方法一：從登入資訊取得
+   npx wrangler whoami 2>&1 | grep -i "account" || echo "請從 Dashboard 取得 Account ID"
+   
+   # 方法二：提示使用者
+   echo "📋 請按照以下步驟取得 Account ID:"
+   echo "   1. 前往: https://dash.cloudflare.com"
+   echo "   2. 在右側邊欄找到 Account ID"
+   echo "   3. 複製 Account ID"
+
+4. 取得 Cloudflare API Token（如果需要 CLI 認證）：
+   echo "📋 請按照以下步驟建立 API Token:"
+   echo "   1. 前往: https://dash.cloudflare.com/profile/api-tokens"
+   echo "   2. 點擊 'Create Token'"
+   echo "   3. 使用 'Edit Cloudflare Workers' 模板"
+   echo "   4. 或自訂權限: Account > Cloudflare Pages > Edit"
+   echo "   5. 複製生成的 Token"
+
+5. 設定環境變數（可選）：
+   # 如果提供了 Token 和 Account ID
+   if [ -n "{{cloudflare_api_token}}" ] && [ -n "{{cloudflare_account_id}}" ]; then
+     export CLOUDFLARE_API_TOKEN="{{cloudflare_api_token}}"
+     export CLOUDFLARE_ACCOUNT_ID="{{cloudflare_account_id}}"
+     echo "✓ 環境變數已設定"
+   fi
+
+6. 驗證設定：
+   npx wrangler whoami && echo "✓ Cloudflare CLI 設定完成" || echo "✗ 請檢查登入狀態"`,
+          verify: `【Cursor 自動化指令】驗證 Cloudflare CLI 設定
+
+請自動執行以下驗證：
+
+1. 驗證 Wrangler 版本：
+   npx wrangler --version && echo "✓ Wrangler 已安裝"
+
+2. 驗證登入狀態：
+   npx wrangler whoami && echo "✓ 已登入 Cloudflare" || echo "✗ 未登入，請執行: npx wrangler login"
+
+3. 列出 Pages 專案：
+   npx wrangler pages project list 2>&1 | head -20 || echo "⚠️  無法列出專案（可能需要登入或建立專案）"
+
+4. 檢查部署能力：
+   # 檢查是否有必要的權限
+   npx wrangler pages deployment list --project-name={{project_name}} 2>&1 | head -5 || echo "⚠️  無法檢查部署（專案可能不存在）"
+
+5. 產生設定報告：
+   echo "=== Cloudflare CLI 設定報告 ==="
+   echo "Wrangler 版本: $(npx wrangler --version 2>&1 | head -1 || echo '未安裝')"
+   echo "登入狀態: $(npx wrangler whoami 2>&1 | grep -q 'email' && echo '已登入' || echo '未登入')"
+     echo "Account ID: $CLOUDFLARE_ACCOUNT_ID"
+     echo "API Token: $CLOUDFLARE_API_TOKEN"`
+        }
+      }
+    ],
+    nextSteps: [1, 4, 7, 9, 59, 60], // RLS、Migration、Auth、Edge Functions、Google Sheets、自動化建置
+    workflowChains: [
+      {
+        id: "env-setup-supabase",
+        name: "環境建置 → Supabase 設定流程",
+        description: "完成環境建置後，開始設定 Supabase 功能",
+        steps: [61, 1, 7, 9],
+        tags: ["環境建置", "Supabase", "初始化"]
+      },
+      {
+        id: "env-setup-keys",
+        name: "環境建置 → API Keys → 環境變數流程",
+        description: "環境建置 → 取得 Keys → 設定環境變數",
+        steps: [61, 59, 60],
+        tags: ["環境建置", "API Keys", "環境變數"]
+      }
+    ]
   }
 ];
 

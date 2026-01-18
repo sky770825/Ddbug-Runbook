@@ -19,6 +19,18 @@ dist-ssr
 .env.production
 .env.development
 
+# 自動化腳本產生的檔案
+.automation-keys.json
+scripts/*.log
+
+# 測試結果
+test-results.xml
+coverage/
+
+# 臨時檔案
+*.tmp
+*.temp
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json
