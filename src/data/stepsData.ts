@@ -2142,18 +2142,18 @@ const handleTrigger = async () => {
   },
   {
     id: 6,
-    title: "環境變數設定問題",
-    shortTitle: "ENV 問題",
-    purpose: "環境變數未設定、格式錯誤、或 NEXT_PUBLIC_ 前綴遺漏，導致連線失敗或功能異常。",
+    title: "本地環境變數設定問題",
+    shortTitle: "本地 ENV",
+    purpose: "本地開發環境變數未設定、格式錯誤、或 NEXT_PUBLIC_ 前綴遺漏，導致連線失敗或功能異常。主要針對 .env.local 檔案。",
     badge: "common",
     category: "general",
-    keywords: ["env", "environment", "config", "missing", "undefined"],
+    keywords: ["env", "environment", "config", "missing", "undefined", "local", ".env.local"],
     checklist: [
       { id: "6-1", label: "檢查 .env.local 檔案存在", completed: false },
       { id: "6-2", label: "確認 NEXT_PUBLIC_ 前綴正確", completed: false },
       { id: "6-3", label: "驗證環境變數值格式", completed: false },
       { id: "6-4", label: "重啟開發伺服器", completed: false },
-      { id: "6-5", label: "GitHub Actions secrets 已設定", completed: false },
+      { id: "6-5", label: "確認環境變數在程式中可讀取", completed: false },
     ],
     prompts: [
       {
@@ -2207,39 +2207,50 @@ requiredEnvVars.forEach(key => {
       },
       {
         id: "p6-2",
-        title: "2. GitHub Actions Secrets",
-        description: "設定 CI/CD 所需的環境變數",
-        keywords: ["github", "actions", "secrets", "ci"],
+        title: "2. 驗證環境變數載入",
+        description: "確認環境變數在應用程式中正確載入和使用",
+        keywords: ["validate", "check", "load", "env"],
         prompts: {
-          diagnostic: `# 列出已設定的 secrets（使用 GitHub CLI）
-gh secret list
+          diagnostic: `# 檢查環境變數是否正確載入
 
-# 必要的 secrets：
-# - NEXT_PUBLIC_SUPABASE_URL
-# - NEXT_PUBLIC_SUPABASE_ANON_KEY
-# - SUPABASE_ACCESS_TOKEN (for CLI)
-# - SUPABASE_PROJECT_ID`,
-          fix: `# 設定 GitHub Secrets
+# 1. 確認檔案存在
+ls -la .env.local
 
-# 方法 1: 使用 GitHub CLI
-gh secret set NEXT_PUBLIC_SUPABASE_URL --body "https://xxx.supabase.co"
-gh secret set NEXT_PUBLIC_SUPABASE_ANON_KEY --body "your-anon-key"
+# 2. 在 Next.js 中檢查（僅客戶端變數）
+console.log('NEXT_PUBLIC_SUPABASE_URL:', process.env.NEXT_PUBLIC_SUPABASE_URL);
 
-# 方法 2: 透過 GitHub Web UI
-# 1. 前往 Repository > Settings > Secrets and variables > Actions
-# 2. 點擊 "New repository secret"
-# 3. 輸入 Name 和 Value
+# 3. 注意：只有 NEXT_PUBLIC_ 前綴的變數才能在客戶端使用
+# 其他變數只能在服務器端使用`,
+          fix: `# 修復環境變數載入問題
 
-# 在 workflow 中使用
-env:
-  NEXT_PUBLIC_SUPABASE_URL: \${ secrets.NEXT_PUBLIC_SUPABASE_URL }
-  NEXT_PUBLIC_SUPABASE_ANON_KEY: \${ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}`,
-          verify: `# 驗證 secrets 已設定
-gh secret list
+# 1. 確認檔案名稱正確
+# - Next.js: .env.local
+# - Vite: .env.local
+# - 確保檔案在專案根目錄
 
-# 預期輸出：
-# NEXT_PUBLIC_SUPABASE_URL      Updated 2024-01-15
-# NEXT_PUBLIC_SUPABASE_ANON_KEY Updated 2024-01-15`
+# 2. 確認變數格式正確（沒有多餘的空格或引號）
+NEXT_PUBLIC_SUPABASE_URL=https://xxx.supabase.co
+NEXT_PUBLIC_SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6...
+
+# 3. 重啟開發伺服器（環境變數只在啟動時載入）
+npm run dev
+
+# 4. 如果使用 Vite，可能需要清除快取
+rm -rf node_modules/.vite
+npm run dev`,
+          verify: `# 驗證環境變數載入
+
+# 1. 檢查是否可讀取
+console.log('URL:', process.env.NEXT_PUBLIC_SUPABASE_URL ? '✓ 已設定' : '✗ 未設定');
+console.log('Key:', process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ? '✓ 已設定' : '✗ 未設定');
+
+# 2. 在瀏覽器 Console 中確認（僅客戶端變數）
+# 注意：只有 NEXT_PUBLIC_ 前綴的變數會暴露到客戶端
+
+# 3. 如果仍無法讀取，檢查：
+# - 檔案是否在正確位置
+# - 變數名稱是否正確
+# - 是否已重啟伺服器`
         }
       }
     ]
@@ -7095,8 +7106,9 @@ npm audit
       { id: "31-1", label: "確認環境變數文件", completed: false },
       { id: "31-2", label: "檢查環境隔離", completed: false },
       { id: "31-3", label: "驗證環境變數同步", completed: false },
-      { id: "31-4", label: "測試環境切換", completed: false },
-      { id: "31-5", label: "建立環境檢查清單", completed: false },
+      { id: "31-4", label: "設定 CI/CD 環境變數（GitHub Secrets）", completed: false },
+      { id: "31-5", label: "測試環境切換", completed: false },
+      { id: "31-6", label: "建立環境檢查清單", completed: false },
     ],
     prompts: [
       {
@@ -7151,6 +7163,81 @@ npm audit
 1. 執行 npm run validate-env
 2. 確認缺少變數時會失敗
 3. 測試不同環境的變數載入`
+        }
+      },
+      {
+        id: "p31-2",
+        title: "2. GitHub Actions Secrets 設定",
+        description: "設定 CI/CD 流程所需的環境變數（GitHub Secrets）",
+        keywords: ["github", "actions", "secrets", "ci", "cd"],
+        prompts: {
+          diagnostic: `# 檢查 GitHub Secrets 設定狀態
+
+# 使用 GitHub CLI 列出已設定的 secrets
+gh secret list
+
+# 必要的 secrets（根據專案需求）：
+# - NEXT_PUBLIC_SUPABASE_URL
+# - NEXT_PUBLIC_SUPABASE_ANON_KEY
+# - SUPABASE_ACCESS_TOKEN (for Supabase CLI)
+# - SUPABASE_PROJECT_ID
+# - CLOUDFLARE_API_TOKEN (如果使用 Cloudflare)
+# - CLOUDFLARE_ACCOUNT_ID (如果使用 Cloudflare)
+
+# 如果 GitHub CLI 未安裝：
+# brew install gh (macOS)
+# 或查看：https://cli.github.com/manual/installation`,
+          fix: `# 設定 GitHub Secrets
+
+# 方法 1: 使用 GitHub CLI（推薦）
+# 1. 確保已登入 GitHub CLI
+gh auth login
+
+# 2. 設定 secrets
+gh secret set NEXT_PUBLIC_SUPABASE_URL --body "https://{{supabase_ref}}.supabase.co"
+gh secret set NEXT_PUBLIC_SUPABASE_ANON_KEY --body "your-anon-key-here"
+gh secret set SUPABASE_ACCESS_TOKEN --body "your-supabase-access-token"
+gh secret set SUPABASE_PROJECT_ID --body "your-project-id"
+
+# 方法 2: 透過 GitHub Web UI
+# 1. 前往 Repository > Settings > Secrets and variables > Actions
+# 2. 點擊 "New repository secret"
+# 3. 輸入 Name 和 Value
+# 4. 點擊 "Add secret"
+
+# 在 GitHub Actions workflow 中使用：
+# .github/workflows/deploy.yml
+name: Deploy
+on:
+  push:
+    branches: [main]
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    env:
+      NEXT_PUBLIC_SUPABASE_URL: \${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+      NEXT_PUBLIC_SUPABASE_ANON_KEY: \${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
+    steps:
+      - uses: actions/checkout@v3
+      - run: npm ci
+      - run: npm run build`,
+          verify: `# 驗證 GitHub Secrets 設定
+
+# 1. 使用 GitHub CLI 檢查
+gh secret list
+
+# 預期輸出範例：
+# NEXT_PUBLIC_SUPABASE_URL      Updated 2024-01-15
+# NEXT_PUBLIC_SUPABASE_ANON_KEY Updated 2024-01-15
+# SUPABASE_ACCESS_TOKEN         Updated 2024-01-15
+
+# 2. 在 GitHub Actions workflow 中測試
+# 建立一個測試 workflow 來確認 secrets 是否正確載入
+# （注意：不能在 workflow 中直接輸出 secret 值）
+
+# 3. 確認 workflow 執行成功
+# 前往 GitHub > Actions > 查看最新的 workflow 執行記錄
+# 確認沒有 "secret not found" 錯誤`
         }
       }
     ]
