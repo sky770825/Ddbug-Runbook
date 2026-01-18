@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, lazy, Suspense } from "react";
+import { useState, useEffect, useCallback, useMemo, lazy, Suspense } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Menu, X, ChevronUp, ChevronDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -49,14 +49,36 @@ const Index = () => {
 
   const [variables, setVariables] = useState<Record<string, string>>(loadVariables);
 
-  // Initialize checklist state for all steps
+  // 優化：使用 Map 快速查找步驟（避免每次都遍歷）
+  const stepsMap = useMemo(() => {
+    const map = new Map<number, typeof stepsData[0]>();
+    stepsData.forEach((step) => {
+      map.set(step.id, step);
+    });
+    return map;
+  }, []);
+
+  // Initialize checklist state for all steps（延遲初始化）
   const [checklists, setChecklists] = useState<Record<number, ChecklistItem[]>>(() => {
     const initial: Record<number, ChecklistItem[]> = {};
-    stepsData.forEach((step) => {
-      initial[step.id] = step.checklist.map((item) => ({ ...item }));
-    });
+    // 只初始化當前步驟，其他按需初始化
+    const currentStep = stepsMap.get(1) || stepsData[0];
+    if (currentStep) {
+      initial[currentStep.id] = currentStep.checklist.map((item) => ({ ...item }));
+    }
     return initial;
   });
+
+  // 優化：按需初始化 checklist（當切換步驟時）
+  useEffect(() => {
+    const stepData = stepsMap.get(currentStep);
+    if (stepData && !checklists[currentStep]) {
+      setChecklists((prev) => ({
+        ...prev,
+        [currentStep]: stepData.checklist.map((item) => ({ ...item })),
+      }));
+    }
+  }, [currentStep, stepsMap, checklists]);
 
   // Set document title
   useEffect(() => {
@@ -82,9 +104,14 @@ const Index = () => {
     setIsMobileHeaderCollapsed(false);
   }, [currentStep]);
 
-  // Get current step data
-  const currentStepData = stepsData.find((s) => s.id === currentStep);
-  const currentChecklist = checklists[currentStep] || [];
+  // 優化：使用 Map 快速查找當前步驟數據
+  const currentStepData = useMemo(() => {
+    return stepsMap.get(currentStep) || null;
+  }, [currentStep, stepsMap]);
+
+  const currentChecklist = useMemo(() => {
+    return checklists[currentStep] || currentStepData?.checklist.map((item) => ({ ...item })) || [];
+  }, [currentStep, checklists, currentStepData]);
 
   // Navigation handlers
   const handleStepClick = useCallback((stepId: number) => {
@@ -93,23 +120,24 @@ const Index = () => {
     setTone("diagnostic");
   }, []);
 
+  // 優化：預先計算步驟順序
+  const stepIds = useMemo(() => stepsData.map((s) => s.id), []);
+
   const handlePrevStep = useCallback(() => {
-    const currentIndex = stepsData.findIndex((s) => s.id === currentStep);
+    const currentIndex = stepIds.indexOf(currentStep);
     if (currentIndex > 0) {
-      setCurrentStep(stepsData[currentIndex - 1].id);
+      setCurrentStep(stepIds[currentIndex - 1]);
       setTone("diagnostic");
     }
-     
-  }, [currentStep]);
+  }, [currentStep, stepIds]);
 
   const handleNextStep = useCallback(() => {
-    const currentIndex = stepsData.findIndex((s) => s.id === currentStep);
-    if (currentIndex < stepsData.length - 1) {
-      setCurrentStep(stepsData[currentIndex + 1].id);
+    const currentIndex = stepIds.indexOf(currentStep);
+    if (currentIndex < stepIds.length - 1) {
+      setCurrentStep(stepIds[currentIndex + 1]);
       setTone("diagnostic");
     }
-     
-  }, [currentStep]);
+  }, [currentStep, stepIds]);
 
   const handleCompleteStep = useCallback(() => {
     if (!completedSteps.includes(currentStep)) {
@@ -184,12 +212,30 @@ const Index = () => {
     });
   }, []);
 
-  const currentIndex = stepsData.findIndex((s) => s.id === currentStep);
-  const hasPrev = currentIndex > 0;
-  const hasNext = currentIndex < stepsData.length - 1;
-  const isCompleted = completedSteps.includes(currentStep);
+  // 優化：使用 useMemo 快取導航狀態
+  const { currentIndex, hasPrev, hasNext } = useMemo(() => {
+    const index = stepIds.indexOf(currentStep);
+    return {
+      currentIndex: index,
+      hasPrev: index > 0,
+      hasNext: index < stepIds.length - 1,
+    };
+  }, [currentStep, stepIds]);
 
-  if (!currentStepData) return null;
+  const isCompleted = useMemo(() => completedSteps.includes(currentStep), [completedSteps, currentStep]);
+
+  // 優化：如果找不到步驟數據，顯示錯誤訊息而不是空白頁面
+  if (!currentStepData) {
+    return (
+      <div className="h-screen flex items-center justify-center bg-background">
+        <div className="text-center p-8">
+          <h2 className="text-xl font-semibold text-foreground mb-2">步驟不存在</h2>
+          <p className="text-muted-foreground mb-4">找不到 ID 為 {currentStep} 的步驟</p>
+          <Button onClick={() => setCurrentStep(1)}>返回首頁</Button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="h-screen flex flex-col bg-background overflow-hidden">

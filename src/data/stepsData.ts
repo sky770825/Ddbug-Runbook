@@ -11380,15 +11380,25 @@ COMMENT ON POLICY "Users can read from {{folder_name}} folder" ON storage.object
   }
 ];
 
-// Helper: Get steps by category
-export const getStepsByCategory = (category: Step['category']) => 
-  stepsData.filter(step => step.category === category);
+// 優化：快取分類步驟結果（避免每次重新計算）
+const categoryStepsCache = new Map<Step['category'], Step[]>();
+export const getStepsByCategory = (category: Step['category']): Step[] => {
+  if (!categoryStepsCache.has(category)) {
+    const filtered = stepsData.filter(step => step.category === category);
+    categoryStepsCache.set(category, filtered);
+  }
+  return categoryStepsCache.get(category)!;
+};
 
-// Helper: Get all categories with counts
+// 優化：快取分類計數
+let categoryCountsCache: Record<string, number> | null = null;
 export const getCategoryCounts = () => {
-  const counts: Record<string, number> = {};
-  stepsData.forEach(step => {
-    counts[step.category] = (counts[step.category] || 0) + 1;
-  });
-  return counts;
+  if (!categoryCountsCache) {
+    const counts: Record<string, number> = {};
+    stepsData.forEach(step => {
+      counts[step.category] = (counts[step.category] || 0) + 1;
+    });
+    categoryCountsCache = counts;
+  }
+  return categoryCountsCache;
 };

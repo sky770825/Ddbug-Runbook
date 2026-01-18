@@ -1,5 +1,5 @@
 import { motion } from "framer-motion";
-import { ArrowLeft, ArrowRight, Search, Wrench, CheckCircle, Database, Zap, Shield, Settings, Gauge, FileText, Rocket, RotateCcw } from "lucide-react";
+import { ArrowLeft, ArrowRight, Search, Wrench, CheckCircle, Database, Zap, Shield, Settings, Gauge, FileText, Rocket, RotateCcw, AlertCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { PromptCard } from "./PromptCard";
@@ -45,6 +45,21 @@ const categoryConfig: Record<Step['category'], { icon: typeof Database; label: s
   frontend: { icon: Gauge, label: "前端優化", color: "bg-indigo-500/10 text-indigo-500 border-indigo-500/20" },
   templates: { icon: FileText, label: "功能模組", color: "bg-amber-500/10 text-amber-500 border-amber-500/20" },
   deployment: { icon: Rocket, label: "部署問題", color: "bg-teal-500/10 text-teal-500 border-teal-500/20" },
+  development: { icon: Settings, label: "開發環境", color: "bg-cyan-500/10 text-cyan-500 border-cyan-500/20" },
+  // 添加其他可能缺失的類別作為預設值
+  monitoring: { icon: Gauge, label: "監控", color: "bg-blue-500/10 text-blue-500 border-blue-500/20" },
+  database: { icon: Database, label: "資料庫", color: "bg-green-500/10 text-green-500 border-green-500/20" },
+  testing: { icon: CheckCircle, label: "測試", color: "bg-purple-500/10 text-purple-500 border-purple-500/20" },
+  cicd: { icon: Rocket, label: "CI/CD", color: "bg-teal-500/10 text-teal-500 border-teal-500/20" },
+  api: { icon: Zap, label: "API", color: "bg-orange-500/10 text-orange-500 border-orange-500/20" },
+  caching: { icon: Database, label: "快取", color: "bg-yellow-500/10 text-yellow-500 border-yellow-500/20" },
+  notifications: { icon: Zap, label: "通知", color: "bg-pink-500/10 text-pink-500 border-pink-500/20" },
+  integrations: { icon: Settings, label: "整合", color: "bg-indigo-500/10 text-indigo-500 border-indigo-500/20" },
+  mobile: { icon: Settings, label: "行動裝置", color: "bg-purple-500/10 text-purple-500 border-purple-500/20" },
+  i18n: { icon: FileText, label: "國際化", color: "bg-blue-500/10 text-blue-500 border-blue-500/20" },
+  business: { icon: Database, label: "商業", color: "bg-green-500/10 text-green-500 border-green-500/20" },
+  analytics: { icon: Gauge, label: "分析", color: "bg-indigo-500/10 text-indigo-500 border-indigo-500/20" },
+  documentation: { icon: FileText, label: "文件", color: "bg-amber-500/10 text-amber-500 border-amber-500/20" },
 };
 
 function StepDetail({
@@ -64,6 +79,19 @@ function StepDetail({
   allSteps,
   onStepClick,
 }: StepDetailProps) {
+  // 錯誤處理：如果 step 為 null 或 undefined
+  if (!step) {
+    return (
+      <div className="h-full flex items-center justify-center">
+        <div className="text-center p-8">
+          <AlertCircle className="w-12 h-12 text-destructive mx-auto mb-4" />
+          <h2 className="text-xl font-semibold text-foreground mb-2">步驟資料載入失敗</h2>
+          <p className="text-muted-foreground">無法載入步驟資料，請重新整理頁面</p>
+        </div>
+      </div>
+    );
+  }
+
   // 獲取下一步驟
   const nextSteps = step.nextSteps
     ? step.nextSteps
@@ -84,7 +112,12 @@ function StepDetail({
       ? "一般問題"
       : "進階";
 
-  const categoryConf = categoryConfig[step.category];
+  // 安全地取得類別配置，如果不存在則使用預設值
+  const categoryConf = categoryConfig[step.category] || {
+    icon: Settings,
+    label: step.category || "未分類",
+    color: "bg-muted text-muted-foreground border-border"
+  };
   const CategoryIcon = categoryConf.icon;
 
   return (

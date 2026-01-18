@@ -47,33 +47,34 @@ export const PromptCard = memo(function PromptCard({ prompt, tone, variables }: 
     setModuleVariables(prev => ({ ...prev, [key]: value }));
   };
 
-  // 使用 useMemo 快取變數替換結果
+  // 優化：使用 useMemo 快取變數替換結果，減少字符串操作
   const processedPrompt = useMemo(() => {
     let result = prompt.prompts[tone];
+    if (!result) return "";
     
-    // 先替換模組變數（優先）
+    // 先收集所有需要替換的變數（避免重複遍歷）
+    const replacements = new Map<string, string>();
+    
+    // 先處理模組變數（優先）
     if (prompt.variables) {
       prompt.variables.forEach(v => {
         const value = moduleVariables[v.key] || variables[v.key] || "";
-        const regex = getRegex(v.key);
-        if (value && value.trim()) {
-          result = result.replace(regex, value);
-        } else {
-          result = result.replace(regex, `{{${v.key}}}`);
-        }
+        replacements.set(v.key, value && value.trim() ? value : `{{${v.key}}}`);
       });
     }
     
-    // 再替換全域變數
+    // 再處理全域變數（跳過已處理的模組變數）
     Object.entries(variables).forEach(([key, value]) => {
       // 跳過已經處理的模組變數
-      if (prompt.variables?.some(v => v.key === key)) return;
-      const regex = getRegex(key);
-      if (value && value.trim()) {
-        result = result.replace(regex, value);
-      } else {
-        result = result.replace(regex, `{{${key}}}`);
+      if (!prompt.variables?.some(v => v.key === key)) {
+        replacements.set(key, value && value.trim() ? value : `{{${key}}}`);
       }
+    });
+    
+    // 一次性替換所有變數（更高效）
+    replacements.forEach((value, key) => {
+      const regex = getRegex(key);
+      result = result.replace(regex, value);
     });
     
     return result;
