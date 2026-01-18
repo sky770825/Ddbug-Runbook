@@ -10555,6 +10555,7 @@ COMMENT ON POLICY "Users can read from {{folder_name}} folder" ON storage.object
       { id: "61-5", label: "檢查 Git 設定", completed: false },
       { id: "61-6", label: "驗證所有工具設定正確", completed: false },
       { id: "61-7", label: "在自己的專案中集成自動化腳本", completed: false },
+      { id: "61-8", label: "執行專案套餐自動化串接", completed: false },
     ],
     prompts: [
       {
@@ -11198,6 +11199,164 @@ COMMENT ON POLICY "Users can read from {{folder_name}} folder" ON storage.object
    echo ""
    echo "   # 5. 部署到 Cloudflare（如果有 deploy-cloudflare.cjs）"
    echo "   npm run deploy:cloudflare"`
+        }
+      },
+      {
+        id: "p61-6",
+        title: "6. 專案套餐自動化串接",
+        description: "一站式自動化所有 CLI 工具的安裝、配置和串接，適用於新專案和現有專案",
+        keywords: ["bundle", "package", "all-in-one", "automation", "setup", "complete", "full"],
+        variables: [
+          {
+            key: "auto_install",
+            label: "自動安裝缺失的工具",
+            placeholder: "true 或 false",
+            description: "是否自動安裝缺失的 CLI 工具（預設：false，會詢問）"
+          },
+          {
+            key: "skip_login",
+            label: "跳過登入步驟",
+            placeholder: "true 或 false",
+            description: "是否跳過 CLI 工具的登入步驟（預設：false）"
+          }
+        ],
+        prompts: {
+          diagnostic: `【Cursor 自動化指令】檢查專案套餐執行狀態
+
+請自動執行以下檢查：
+
+1. 檢查 project-bundle.cjs 腳本是否存在：
+   test -f scripts/project-bundle.cjs && echo "✓ project-bundle.cjs 存在" || echo "✗ project-bundle.cjs 不存在"
+
+2. 檢查 package.json 中是否已添加 bundle 腳本：
+   grep -q "\"bundle\"" package.json 2>/dev/null && echo "✓ npm run bundle 已設定" || echo "✗ npm run bundle 未設定"
+
+3. 檢查所有 CLI 工具狀態：
+   npx supabase --version 2>&1 | head -1 || echo "✗ Supabase CLI 未安裝"
+   gh --version 2>&1 | head -1 || echo "✗ GitHub CLI 未安裝"
+   npx wrangler --version 2>&1 | head -1 || echo "✗ Cloudflare CLI 未安裝"
+   node --version 2>&1 || echo "✗ Node.js 未安裝"
+   git --version 2>&1 | head -1 || echo "✗ Git 未安裝"
+
+4. 檢查 CLI 工具登入狀態：
+   npx supabase projects list 2>&1 | head -1 || echo "✗ Supabase 未登入"
+   gh auth status 2>&1 | head -1 || echo "✗ GitHub 未登入"
+   npx wrangler whoami 2>&1 | head -1 || echo "✗ Cloudflare 未登入"`,
+          fix: `【Cursor 自動化指令】執行專案套餐自動化串接
+
+請自動執行以下操作，完成所有 CLI 工具的自動安裝、配置和串接：
+
+1. 執行專案套餐腳本（推薦方式）：
+   npm run bundle
+   
+   或使用自動安裝模式（自動安裝所有必需的工具）：
+   npm run bundle:auto
+   
+   或只檢查狀態（不安裝、不登入）：
+   npm run bundle:check
+
+2. 腳本會自動執行以下步驟：
+   
+   a) 檢查所有 CLI 工具狀態：
+      - Supabase CLI
+      - GitHub CLI
+      - Cloudflare CLI (Wrangler)
+      - Node.js
+      - npm
+      - Git
+   
+   b) 自動安裝缺失的工具：
+      - 如果工具未安裝且可以自動安裝，會詢問或自動安裝
+      - 必需的工具（Supabase CLI, Node.js, npm, Git）會優先處理
+      - 可選的工具（GitHub CLI, Cloudflare CLI）會詢問是否安裝
+   
+   c) 自動登入 CLI 工具：
+      - 檢查是否已登入 Supabase
+      - 檢查是否已登入 GitHub（可選）
+      - 檢查是否已登入 Cloudflare（可選）
+      - 如果未登入，會詢問是否現在登入
+   
+   d) 執行專案初始化（如果需要的話）：
+      - 自動執行 npm run init
+      - 檢查依賴安裝
+      - 檢查環境變數設定
+   
+   e) 設定環境變數（如果需要的話）：
+      - 自動執行 npm run fetch-keys（如果沒有 .automation-keys.json）
+      - 自動執行 npm run setup-env（如果沒有 .env.local）
+   
+   f) 執行健康檢查（如果需要的話）：
+      - 自動執行 npm run health
+      - 檢查所有設定是否正確
+
+3. 如果腳本不存在，請先建立：
+   # 檢查 scripts 目錄
+   mkdir -p scripts
+   
+   # 建立 project-bundle.cjs（參考 scripts/project-bundle.cjs 的完整內容）
+   
+   # 在 package.json 中添加腳本：
+   # "bundle": "node scripts/project-bundle.cjs",
+   # "bundle:auto": "node scripts/project-bundle.cjs --auto-install",
+   # "bundle:check": "node scripts/project-bundle.cjs --skip-install --skip-login"
+
+4. 執行完成後，腳本會產生完整的報告：
+   - 顯示所有 CLI 工具的安裝狀態
+   - 顯示登入狀態
+   - 提供下一步建議
+
+5. 適用場景：
+   - 新專案：自動安裝所有工具並完成初始化
+   - 現有專案：檢查並補充缺失的工具和配置
+   - CI/CD：使用 --auto-install 參數進行自動化部署`,
+          verify: `【Cursor 自動化指令】驗證專案套餐執行結果
+
+請自動執行以下驗證：
+
+1. 驗證專案套餐腳本是否正常執行：
+   npm run bundle:check 2>&1 | head -30
+
+2. 驗證所有必需的 CLI 工具已安裝：
+   npx supabase --version && echo "✓ Supabase CLI 已安裝" || echo "✗ Supabase CLI 未安裝"
+   node --version && echo "✓ Node.js 已安裝" || echo "✗ Node.js 未安裝"
+   npm --version && echo "✓ npm 已安裝" || echo "✗ npm 未安裝"
+   git --version && echo "✓ Git 已安裝" || echo "✗ Git 未安裝"
+
+3. 驗證可選的 CLI 工具（如果需要的話）：
+   gh --version 2>&1 | head -1 && echo "✓ GitHub CLI 已安裝" || echo "ℹ️  GitHub CLI 未安裝（可選）"
+   npx wrangler --version 2>&1 | head -1 && echo "✓ Cloudflare CLI 已安裝" || echo "ℹ️  Cloudflare CLI 未安裝（可選）"
+
+4. 驗證 CLI 工具登入狀態：
+   npx supabase projects list 2>&1 | head -1 && echo "✓ Supabase 已登入" || echo "⚠️  Supabase 未登入"
+   gh auth status 2>&1 | grep -q "Logged in" && echo "✓ GitHub 已登入" || echo "ℹ️  GitHub 未登入（可選）"
+   npx wrangler whoami 2>&1 | grep -q "email" && echo "✓ Cloudflare 已登入" || echo "ℹ️  Cloudflare 未登入（可選）"
+
+5. 驗證專案設定是否完整：
+   test -f package.json && echo "✓ package.json 存在" || echo "✗ package.json 不存在"
+   test -d node_modules && echo "✓ 依賴已安裝" || echo "⚠️  依賴未安裝，執行: npm install"
+   test -f .env.local && echo "✓ .env.local 存在" || echo "⚠️  .env.local 不存在，執行: npm run setup-env"
+
+6. 產生專案套餐驗證報告：
+   echo ""
+   echo "=== 專案套餐驗證報告 ==="
+   echo "必需工具:"
+   echo "  Supabase CLI: $(npx supabase --version 2>&1 | head -1 || echo '未安裝')"
+   echo "  Node.js: $(node --version 2>&1 || echo '未安裝')"
+   echo "  npm: $(npm --version 2>&1 || echo '未安裝')"
+   echo "  Git: $(git --version 2>&1 | head -1 || echo '未安裝')"
+   echo ""
+   echo "可選工具:"
+   echo "  GitHub CLI: $(gh --version 2>&1 | head -1 || echo '未安裝')"
+   echo "  Cloudflare CLI: $(npx wrangler --version 2>&1 | head -1 || echo '未安裝')"
+   echo ""
+   echo "專案狀態:"
+   echo "  依賴安裝: $(test -d node_modules && echo '是' || echo '否')"
+   echo "  環境變數: $(test -f .env.local && echo '已設定' || echo '未設定')"
+   echo ""
+   echo "📋 使用專案套餐:"
+   echo "  完整套餐: npm run bundle"
+   echo "  自動安裝: npm run bundle:auto"
+   echo "  僅檢查: npm run bundle:check"`
         }
       }
     ],
