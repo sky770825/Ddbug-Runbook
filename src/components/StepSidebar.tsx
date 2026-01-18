@@ -26,6 +26,7 @@ const categoryConfig: Record<Step['category'], { icon: typeof Database; label: s
   frontend: { icon: Gauge, label: "前端優化", color: "text-indigo-500" },
   templates: { icon: FileText, label: "功能模組", color: "text-amber-500" },
   deployment: { icon: Rocket, label: "部署問題", color: "text-teal-500" },
+  development: { icon: Settings, label: "開發環境", color: "text-cyan-500" },
 };
 
 export const StepSidebar = memo(function StepSidebar({
@@ -56,7 +57,7 @@ export const StepSidebar = memo(function StepSidebar({
   // Group steps by category using helper function
   const groupedSteps = useMemo(() => {
     const grouped: Record<string, Step[]> = {};
-    const categories: Step['category'][] = ['supabase', 'n8n', 'security', 'general', 'backend', 'crm', 'email', 'line', 'frontend', 'templates', 'deployment'];
+    const categories: Step['category'][] = ['supabase', 'n8n', 'security', 'general', 'backend', 'crm', 'email', 'line', 'frontend', 'templates', 'deployment', 'development'];
     categories.forEach(category => {
       const categorySteps = getStepsByCategory(category);
       if (categorySteps.length > 0) {
