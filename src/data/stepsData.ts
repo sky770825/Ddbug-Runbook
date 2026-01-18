@@ -115,58 +115,111 @@ console.log('✓ Error:', error);`
         description: "確認表格是否有正確設定 policy，以及 policy 的條件是否符合預期",
         keywords: ["policy", "check", "list", "view"],
         prompts: {
-          diagnostic: `-- 列出指定表格的所有 policies
-SELECT 
-  schemaname,
-  tablename,
-  policyname,
-  permissive,
-  roles,
-  cmd,
-  qual,
-  with_check
-FROM pg_policies 
-WHERE tablename = '{{table_name}}';
+          diagnostic: `【Cursor 自動化指令】自動檢查 RLS 政策（不需要手寫 SQL）
 
--- 檢查 RLS 是否已啟用
-SELECT tablename, rowsecurity 
-FROM pg_tables 
-WHERE schemaname = 'public' AND tablename = '{{table_name}}';`,
-          fix: `【Cursor 自動化指令】自動建立完整的 RLS Policies
+請自動執行以下操作，不需要手動複製 SQL：
 
-請根據表格結構自動生成以下 SQL，並在 Supabase SQL Editor 執行：
+1. 檢查 Supabase CLI 是否可用（如果不可用，自動安裝）：
+   if ! command -v supabase &> /dev/null; then
+     echo "正在安裝 Supabase CLI..."
+     npm install -g supabase
+   fi
 
--- 1. 啟用 RLS（如果尚未啟用）
-ALTER TABLE {{table_name}} ENABLE ROW LEVEL SECURITY;
+2. 自動連接 Supabase 專案（從環境變數或 .env 讀取）：
+   # 如果尚未連接，自動連接：
+   npx supabase link --project-ref {{supabase_ref}} || true
+   # 或使用 Access Token：
+   # npx supabase link --project-ref {{supabase_ref}} --password <access_token>
 
--- 2. SELECT: 用戶只能讀取自己的資料
-CREATE POLICY "Users can view own data"
-  ON {{table_name}} FOR SELECT
-  USING (auth.uid() = {{field_name}});
+3. 自動執行檢查 SQL（使用 Supabase CLI）：
+   npx supabase db execute --query "
+     SELECT 
+       schemaname,
+       tablename,
+       policyname,
+       permissive,
+       roles,
+       cmd,
+       qual,
+       with_check
+     FROM pg_policies 
+     WHERE tablename = '{{table_name}}';
+     
+     SELECT tablename, rowsecurity 
+     FROM pg_tables 
+     WHERE schemaname = 'public' AND tablename = '{{table_name}}';
+   " --output json
 
--- 3. INSERT: 用戶只能新增自己的資料
-CREATE POLICY "Users can insert own data"
-  ON {{table_name}} FOR INSERT
-  WITH CHECK (auth.uid() = {{field_name}});
+4. 在 Cursor 中顯示結果：
+   # Cursor 會自動解析 JSON 並以表格形式顯示結果
+   # 如果沒有政策，會自動提示需要建立`,
+          fix: `【Cursor 自動化指令】自動建立完整的 RLS Policies（不需要手寫 SQL）
 
--- 4. UPDATE: 用戶只能更新自己的資料
-CREATE POLICY "Users can update own data"
-  ON {{table_name}} FOR UPDATE
-  USING (auth.uid() = {{field_name}})
-  WITH CHECK (auth.uid() = {{field_name}});
+請自動執行以下操作，不需要手動複製 SQL：
 
--- 5. DELETE: 用戶只能刪除自己的資料
-CREATE POLICY "Users can delete own data"
-  ON {{table_name}} FOR DELETE
-  USING (auth.uid() = {{field_name}});
+1. 自動連接 Supabase 專案（如果尚未連接）：
+   npx supabase link --project-ref {{supabase_ref}} || true
 
-【注意】請在專案設定中填入 {{table_name}} 和 {{field_name}}，系統會自動替換。`,
-          verify: `-- 驗證 policies 已正確建立
-SELECT policyname, cmd, qual 
-FROM pg_policies 
-WHERE tablename = '{{table_name}}';
+2. 自動執行 SQL 建立 RLS 政策（使用 Supabase CLI）：
+   npx supabase db execute --query "
+     -- 1. 啟用 RLS（如果尚未啟用）
+     ALTER TABLE {{table_name}} ENABLE ROW LEVEL SECURITY;
+     
+     -- 2. SELECT: 用戶只能讀取自己的資料
+     CREATE POLICY IF NOT EXISTS \"Users can view own data\"
+       ON {{table_name}} FOR SELECT
+       USING (auth.uid() = {{field_name}});
+     
+     -- 3. INSERT: 用戶只能新增自己的資料
+     CREATE POLICY IF NOT EXISTS \"Users can insert own data\"
+       ON {{table_name}} FOR INSERT
+       WITH CHECK (auth.uid() = {{field_name}});
+     
+     -- 4. UPDATE: 用戶只能更新自己的資料
+     CREATE POLICY IF NOT EXISTS \"Users can update own data\"
+       ON {{table_name}} FOR UPDATE
+       USING (auth.uid() = {{field_name}})
+       WITH CHECK (auth.uid() = {{field_name}});
+     
+     -- 5. DELETE: 用戶只能刪除自己的資料
+     CREATE POLICY IF NOT EXISTS \"Users can delete own data\"
+       ON {{table_name}} FOR DELETE
+       USING (auth.uid() = {{field_name}});
+   "
 
--- 應該看到 4 個 policies (SELECT, INSERT, UPDATE, DELETE)`
+3. 自動驗證執行結果：
+   # Cursor 會自動檢查執行結果
+   # 如果有錯誤，會顯示詳細的錯誤訊息
+   # 如果成功，會顯示確認訊息
+
+【注意】請在專案設定中填入 {{table_name}}、{{field_name}} 和 {{supabase_ref}}，系統會自動替換。`,
+          verify: `【Cursor 自動化指令】自動驗證 RLS 政策（不需要手寫 SQL）
+
+請自動執行以下驗證步驟：
+
+1. 自動執行驗證 SQL（使用 Supabase CLI）：
+   npx supabase db execute --query "
+     SELECT policyname, cmd, qual 
+     FROM pg_policies 
+     WHERE tablename = '{{table_name}}';
+   " --output json
+
+2. 自動檢查結果：
+   # Cursor 會自動解析 JSON 並檢查：
+   # ✅ 是否包含 SELECT 政策
+   # ✅ 是否包含 INSERT 政策
+   # ✅ 是否包含 UPDATE 政策
+   # ✅ 是否包含 DELETE 政策
+   
+   # 如果缺少某個政策，會自動建議修正：
+   # ⚠️ 缺少 INSERT 政策，建議執行修正步驟
+
+3. 自動顯示驗證結果：
+   ✅ RLS 政策已正確建立
+   ✅ 包含 SELECT 政策（Users can view own data）
+   ✅ 包含 INSERT 政策（Users can insert own data）
+   ✅ 包含 UPDATE 政策（Users can update own data）
+   ✅ 包含 DELETE 政策（Users can delete own data）`
         }
       },
       {
@@ -292,36 +345,82 @@ export async function GET() {
         description: "使用 SQL 建立儲存空間，設定公開或私有存取",
         keywords: ["bucket", "create", "public", "private"],
         prompts: {
-          diagnostic: `-- 檢查現有的 buckets
-SELECT id, name, public, created_at
-FROM storage.buckets;
+          diagnostic: `【Cursor 自動化指令】自動檢查 Storage Buckets（不需要手寫 SQL）
 
--- 檢查特定 bucket 的檔案
-SELECT name, bucket_id, created_at
-FROM storage.objects
-WHERE bucket_id = '{{bucket_name}}'
-LIMIT 10;`,
-          fix: `-- 建立公開的 bucket（任何人可讀取）
-INSERT INTO storage.buckets (id, name, public)
-VALUES ('{{bucket_name}}', '{{bucket_name}}', true)
-ON CONFLICT (id) DO NOTHING;
+請自動執行以下檢查，不需要手動複製 SQL：
 
--- 建立私有的 bucket（需要認證才能讀取）
+1. 自動連接 Supabase 專案（如果尚未連接）：
+   npx supabase link --project-ref {{supabase_ref}} || true
+
+2. 自動執行檢查 SQL（使用 Supabase CLI）：
+   npx supabase db execute --query "
+     -- 檢查現有的 buckets
+     SELECT id, name, public, created_at
+     FROM storage.buckets;
+     
+     -- 檢查特定 bucket 的檔案
+     SELECT name, bucket_id, created_at
+     FROM storage.objects
+     WHERE bucket_id = '{{bucket_name}}'
+     LIMIT 10;
+   " --output json
+
+3. 在 Cursor 中顯示結果：
+   # Cursor 會自動解析 JSON 並顯示：
+   # ✅ 現有的 buckets 列表
+   # ✅ {{bucket_name}} bucket 中的檔案列表`,
+          fix: `【Cursor 自動化指令】自動建立 Storage Bucket（不需要手寫 SQL）
+
+請自動執行以下操作，不需要手動複製 SQL：
+
+1. 自動連接 Supabase 專案（如果尚未連接）：
+   npx supabase link --project-ref {{supabase_ref}} || true
+
+2. 自動執行 SQL 建立 bucket（使用 Supabase CLI）：
+   npx supabase db execute --query "
+     -- 建立公開的 bucket（任何人可讀取）
+     INSERT INTO storage.buckets (id, name, public)
+     VALUES ('{{bucket_name}}', '{{bucket_name}}', true)
+     ON CONFLICT (id) DO NOTHING;
+     
+     -- 如果需要更新現有 bucket 為公開
+     UPDATE storage.buckets 
+     SET public = true 
+     WHERE id = '{{bucket_name}}';
+   "
+
+3. 自動驗證執行結果：
+   # Cursor 會自動檢查執行結果
+   # 如果有錯誤，會顯示詳細的錯誤訊息
+   # 如果成功，會顯示確認訊息
+
+【注意】如需建立私有 bucket，請取消註解以下 SQL：
 -- INSERT INTO storage.buckets (id, name, public)
 -- VALUES ('documents', 'documents', false)
--- ON CONFLICT (id) DO NOTHING;
+-- ON CONFLICT (id) DO NOTHING;`,
+          verify: `【Cursor 自動化指令】自動驗證 Bucket 已建立（不需要手寫 SQL）
 
--- 如果需要更新現有 bucket 為公開
-UPDATE storage.buckets 
-SET public = true 
-WHERE id = '{{bucket_name}}';`,
-          verify: `-- 確認 bucket 已建立且設定正確
-SELECT id, name, public 
-FROM storage.buckets 
-WHERE id = '{{bucket_name}}';
+請自動執行以下驗證步驟：
 
--- 預期結果：
--- id: {{bucket_name}}, name: {{bucket_name}}, public: true`
+1. 自動執行驗證 SQL（使用 Supabase CLI）：
+   npx supabase db execute --query "
+     -- 確認 bucket 已建立且設定正確
+     SELECT id, name, public 
+     FROM storage.buckets 
+     WHERE id = '{{bucket_name}}';
+   " --output json
+
+2. 自動檢查結果：
+   # Cursor 會自動解析 JSON 並檢查：
+   # ✅ bucket 是否存在
+   # ✅ public 設定是否正確（預期：true）
+   
+   # 預期結果：
+   # id: {{bucket_name}}, name: {{bucket_name}}, public: true
+
+3. 自動顯示驗證結果：
+   ✅ bucket 已建立
+   ✅ public 設定正確`
         }
       },
       {
@@ -1711,33 +1810,59 @@ console.log('Current origin:', window.location.origin);`
         description: "使用 debug 模式取得完整的錯誤資訊",
         keywords: ["debug", "error", "log", "verbose"],
         prompts: {
-          diagnostic: `# 使用 debug 模式執行 db push
-npx supabase db push --debug
+          diagnostic: `【Cursor 自動化指令】檢查 SQL Migration 問題（不需要手寫 SQL）
 
-# 常見錯誤訊息：
-# "relation already exists" → 表格已存在
-# "foreign key constraint" → 外鍵參照問題
-# "syntax error" → SQL 語法錯誤
-# "permission denied" → 權限問題
+請自動執行以下檢查，不需要手動複製 SQL：
 
-# 查看 migration 狀態
-npx supabase migration list`,
-          fix: `# 根據錯誤類型修正
+1. 自動連接 Supabase 專案（如果尚未連接）：
+   npx supabase link --project-ref {{supabase_ref}} || true
 
-# 1. "relation already exists"
-# 修改 migration 使用 IF NOT EXISTS
-CREATE TABLE IF NOT EXISTS your_table (...);
+2. 使用 debug 模式執行 db push：
+   npx supabase db push --debug
 
-# 2. 重置並重新執行（開發環境）
-npx supabase db reset
+3. 查看 migration 狀態：
+   npx supabase migration list
 
-# 3. 修復特定 migration 後重新推送
-npx supabase db push`,
-          verify: `# 驗證 migration 成功
-npx supabase migration list
+4. 檢查常見錯誤：
+   # "relation already exists" → 表格已存在
+   # "foreign key constraint" → 外鍵參照問題
+   # "syntax error" → SQL 語法錯誤
+   # "permission denied" → 權限問題`,
+          fix: `【Cursor 自動化指令】自動修正 SQL Migration 問題（不需要手寫 SQL）
 
-# 檢查表格是否存在
-npx supabase db execute --sql "SELECT tablename FROM pg_tables WHERE schemaname = 'public';"`
+請自動執行以下操作，不需要手動複製 SQL：
+
+1. 自動連接 Supabase 專案（如果尚未連接）：
+   npx supabase link --project-ref {{supabase_ref}} || true
+
+2. 根據錯誤類型自動修正：
+
+   # 錯誤類型 1: "relation already exists"
+   # 自動檢查並修改 migration 使用 IF NOT EXISTS
+   # 例如：CREATE TABLE IF NOT EXISTS your_table (...);
+
+   # 錯誤類型 2: 重置並重新執行（開發環境）
+   npx supabase db reset
+
+   # 錯誤類型 3: 修復特定 migration 後重新推送
+   npx supabase db push
+
+3. 自動驗證執行結果：
+   # Cursor 會自動檢查執行結果
+   # 如果有錯誤，會顯示詳細的錯誤訊息
+   # 如果成功，會顯示確認訊息`,
+          verify: `【Cursor 自動化指令】驗證 Migration 成功（不需要手寫 SQL）
+
+請自動執行以下檢查，不需要手動複製 SQL：
+
+1. 自動連接 Supabase 專案（如果尚未連接）：
+   npx supabase link --project-ref {{supabase_ref}} || true
+
+2. 自動檢查 migration 狀態：
+   npx supabase migration list
+
+3. 自動檢查表格是否存在：
+   npx supabase db execute --query "SELECT tablename FROM pg_tables WHERE schemaname = 'public';" --output json`
         }
       },
       {
@@ -1746,47 +1871,78 @@ npx supabase db execute --sql "SELECT tablename FROM pg_tables WHERE schemaname 
         description: "確保參照的表格和欄位在建立外鍵時已存在",
         keywords: ["foreign", "key", "reference", "constraint"],
         prompts: {
-          diagnostic: `-- 檢查外鍵參照是否有效
-SELECT 
-  tc.table_name, 
-  kcu.column_name,
-  ccu.table_name AS foreign_table_name,
-  ccu.column_name AS foreign_column_name
-FROM information_schema.table_constraints AS tc
-JOIN information_schema.key_column_usage AS kcu
-  ON tc.constraint_name = kcu.constraint_name
-JOIN information_schema.constraint_column_usage AS ccu
-  ON ccu.constraint_name = tc.constraint_name
-WHERE tc.constraint_type = 'FOREIGN KEY';`,
-          fix: `-- 正確的外鍵建立順序
+          diagnostic: `【Cursor 自動化指令】檢查外鍵參照是否有效（不需要手寫 SQL）
 
--- 1. 先建立被參照的表格
-CREATE TABLE users (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  email TEXT UNIQUE NOT NULL
-);
+請自動執行以下檢查，不需要手動複製 SQL：
 
--- 2. 再建立有外鍵的表格
-CREATE TABLE orders (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  user_id UUID REFERENCES users(id) ON DELETE CASCADE,
-  total DECIMAL(10,2)
-);
+1. 自動連接 Supabase 專案（如果尚未連接）：
+   npx supabase link --project-ref {{supabase_ref}} || true
 
--- 如果要修改現有表格，使用 ALTER TABLE
-ALTER TABLE orders 
-ADD CONSTRAINT fk_user 
-FOREIGN KEY (user_id) REFERENCES users(id);`,
-          verify: `-- 確認外鍵已正確建立
-SELECT 
-  tc.constraint_name,
-  tc.table_name,
-  kcu.column_name
-FROM information_schema.table_constraints tc
-JOIN information_schema.key_column_usage kcu 
-  ON tc.constraint_name = kcu.constraint_name
-WHERE tc.constraint_type = 'FOREIGN KEY' 
-  AND tc.table_name = 'orders';`
+2. 自動檢查外鍵參照：
+   npx supabase db execute --query "
+     SELECT 
+       tc.table_name, 
+       kcu.column_name,
+       ccu.table_name AS foreign_table_name,
+       ccu.column_name AS foreign_column_name
+     FROM information_schema.table_constraints AS tc
+     JOIN information_schema.key_column_usage AS kcu
+       ON tc.constraint_name = kcu.constraint_name
+     JOIN information_schema.constraint_column_usage AS ccu
+       ON ccu.constraint_name = tc.constraint_name
+     WHERE tc.constraint_type = 'FOREIGN KEY';
+   " --output json`,
+          fix: `【Cursor 自動化指令】自動修正外鍵約束錯誤（不需要手寫 SQL）
+
+請自動執行以下操作，不需要手動複製 SQL：
+
+1. 自動連接 Supabase 專案（如果尚未連接）：
+   npx supabase link --project-ref {{supabase_ref}} || true
+
+2. 自動建立正確的外鍵順序：
+   npx supabase db execute --query "
+     -- 1. 先建立被參照的表格
+     CREATE TABLE IF NOT EXISTS users (
+       id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+       email TEXT UNIQUE NOT NULL
+     );
+     
+     -- 2. 再建立有外鍵的表格
+     CREATE TABLE IF NOT EXISTS orders (
+       id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+       user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+       total DECIMAL(10,2)
+     );
+     
+     -- 如果要修改現有表格，使用 ALTER TABLE
+     ALTER TABLE orders 
+     ADD CONSTRAINT IF NOT EXISTS fk_user 
+     FOREIGN KEY (user_id) REFERENCES users(id);
+   "
+
+3. 自動驗證執行結果：
+   # Cursor 會自動檢查執行結果
+   # 如果有錯誤，會顯示詳細的錯誤訊息
+   # 如果成功，會顯示確認訊息`,
+          verify: `【Cursor 自動化指令】驗證外鍵已正確建立（不需要手寫 SQL）
+
+請自動執行以下檢查，不需要手動複製 SQL：
+
+1. 自動連接 Supabase 專案（如果尚未連接）：
+   npx supabase link --project-ref {{supabase_ref}} || true
+
+2. 自動確認外鍵已正確建立：
+   npx supabase db execute --query "
+     SELECT 
+       tc.constraint_name,
+       tc.table_name,
+       kcu.column_name
+     FROM information_schema.table_constraints tc
+     JOIN information_schema.key_column_usage kcu 
+       ON tc.constraint_name = kcu.constraint_name
+     WHERE tc.constraint_type = 'FOREIGN KEY' 
+       AND tc.table_name = 'orders';
+   " --output json`
         }
       },
       {
@@ -2110,54 +2266,72 @@ gh secret list
         description: "啟用 Email/Password 認證並設定相關選項",
         keywords: ["email", "password", "signup", "login"],
         prompts: {
-          diagnostic: `【Cursor 自動化指令】檢查 Auth 設定
+          diagnostic: `【Cursor 自動化指令】檢查 Auth 設定（不需要手寫 SQL）
 
-1. 前往 Supabase Dashboard > Authentication > Providers
-2. 確認 Email provider 是否已啟用
-3. 檢查以下設定：
-   - Enable email confirmations
-   - Enable secure email change
-   - Enable email signup`,
-          fix: `【Cursor 自動化指令】自動設定 Email/Password 認證
+請自動執行以下檢查，不需要手動複製 SQL：
 
-請在 Supabase Dashboard 或使用 SQL 自動設定：
+1. 自動連接 Supabase 專案（如果尚未連接）：
+   npx supabase link --project-ref {{supabase_ref}} || true
 
--- 1. 啟用 Email provider（在 Dashboard 中操作，或使用 Management API）
--- Authentication > Providers > Email > Enable
+2. 檢查 Auth 設定：
+   # 前往 Supabase Dashboard > Authentication > Providers
+   # 確認 Email provider 是否已啟用
+   # 檢查以下設定：
+   #   - Enable email confirmations
+   #   - Enable secure email change
+   #   - Enable email signup
 
--- 2. 設定 Email Templates（在 Dashboard 中）
--- Authentication > Email Templates
--- 自訂以下模板：
---   - Confirm signup
---   - Magic Link
---   - Change Email Address
---   - Reset Password
+3. 自動檢查 Auth 相關表格：
+   npx supabase db execute --query "
+     SELECT table_name 
+     FROM information_schema.tables 
+     WHERE table_schema = 'auth' 
+     ORDER BY table_name;
+   " --output json`,
+          fix: `【Cursor 自動化指令】自動設定 Email/Password 認證（不需要手寫 SQL）
 
--- 3. 前端實作登入/註冊功能
-import { createClient } from '@supabase/supabase-js';
+請自動執行以下操作，不需要手動複製 SQL：
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-);
+1. 自動連接 Supabase 專案（如果尚未連接）：
+   npx supabase link --project-ref {{supabase_ref}} || true
 
-// 註冊
-const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
-  email: 'user@example.com',
-  password: 'secure-password',
-  options: {
-    emailRedirectTo: \`\${window.location.origin}/auth/callback\`
-  }
-});
+2. 啟用 Email provider（需要在 Dashboard 中操作）：
+   # Authentication > Providers > Email > Enable
+   # 或使用 Management API 自動設定
 
-// 登入
-const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
-  email: 'user@example.com',
-  password: 'secure-password'
-});
+3. 設定 Email Templates（需要在 Dashboard 中操作）：
+   # Authentication > Email Templates
+   # 自訂以下模板：
+   #   - Confirm signup
+   #   - Magic Link
+   #   - Change Email Address
+   #   - Reset Password
 
-// 登出
-await supabase.auth.signOut();`,
+4. 前端實作登入/註冊功能：
+   import { createClient } from '@supabase/supabase-js';
+   
+   const supabase = createClient(
+     process.env.NEXT_PUBLIC_SUPABASE_URL!,
+     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+   );
+   
+   // 註冊
+   const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
+     email: 'user@example.com',
+     password: 'secure-password',
+     options: {
+       emailRedirectTo: \`\${window.location.origin}/auth/callback\`
+     }
+   });
+   
+   // 登入
+   const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
+     email: 'user@example.com',
+     password: 'secure-password'
+   });
+   
+   // 登出
+   await supabase.auth.signOut();`,
           verify: `【Cursor 自動化指令】驗證 Auth 功能
 
 // 1. 測試註冊流程
@@ -2189,81 +2363,104 @@ console.log('Current user:', user);`
         description: "建立 profiles 表並設定自動觸發器",
         keywords: ["profile", "table", "trigger", "hook"],
         prompts: {
-          diagnostic: `【Cursor 自動化指令】檢查用戶資料表
+          diagnostic: `【Cursor 自動化指令】檢查用戶資料表（不需要手寫 SQL）
 
--- 檢查是否存在 profiles 表
-SELECT table_name 
-FROM information_schema.tables 
-WHERE table_schema = 'public' AND table_name = 'profiles';
+請自動執行以下檢查，不需要手動複製 SQL：
 
--- 檢查是否有 auth.users 觸發器
-SELECT trigger_name, event_manipulation, event_object_table
-FROM information_schema.triggers
-WHERE trigger_schema = 'auth' AND event_object_table = 'users';`,
-          fix: `【Cursor 自動化指令】自動建立用戶資料表與觸發器
+1. 自動連接 Supabase 專案（如果尚未連接）：
+   npx supabase link --project-ref {{supabase_ref}} || true
 
-請在 Supabase SQL Editor 執行以下 SQL：
+2. 自動檢查是否存在 profiles 表：
+   npx supabase db execute --query "
+     SELECT table_name 
+     FROM information_schema.tables 
+     WHERE table_schema = 'public' AND table_name = 'profiles';
+   " --output json
 
--- 1. 建立 profiles 表
-CREATE TABLE IF NOT EXISTS public.profiles (
-  id UUID REFERENCES auth.users(id) ON DELETE CASCADE PRIMARY KEY,
-  email TEXT,
-  display_name TEXT,
-  avatar_url TEXT,
-  created_at TIMESTAMPTZ DEFAULT now(),
-  updated_at TIMESTAMPTZ DEFAULT now()
-);
+3. 自動檢查是否有 auth.users 觸發器：
+   npx supabase db execute --query "
+     SELECT trigger_name, event_manipulation, event_object_table
+     FROM information_schema.triggers
+     WHERE trigger_schema = 'auth' AND event_object_table = 'users';
+   " --output json`,
+          fix: `【Cursor 自動化指令】自動建立用戶資料表與觸發器（不需要手寫 SQL）
 
--- 2. 啟用 RLS
-ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
+請自動執行以下操作，不需要手動複製 SQL：
 
--- 3. 建立 RLS Policies
-CREATE POLICY "Users can view own profile"
-  ON public.profiles FOR SELECT
-  USING (auth.uid() = id);
+1. 自動連接 Supabase 專案（如果尚未連接）：
+   npx supabase link --project-ref {{supabase_ref}} || true
 
-CREATE POLICY "Users can update own profile"
-  ON public.profiles FOR UPDATE
-  USING (auth.uid() = id)
-  WITH CHECK (auth.uid() = id);
+2. 自動建立 profiles 表和觸發器：
+   npx supabase db execute --query "
+     -- 1. 建立 profiles 表
+     CREATE TABLE IF NOT EXISTS public.profiles (
+       id UUID REFERENCES auth.users(id) ON DELETE CASCADE PRIMARY KEY,
+       email TEXT,
+       display_name TEXT,
+       avatar_url TEXT,
+       created_at TIMESTAMPTZ DEFAULT now(),
+       updated_at TIMESTAMPTZ DEFAULT now()
+     );
+     
+     -- 2. 啟用 RLS
+     ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
+     
+     -- 3. 建立 RLS Policies
+     CREATE POLICY IF NOT EXISTS \\\"Users can view own profile\\\"
+       ON public.profiles FOR SELECT
+       USING (auth.uid() = id);
+     
+     CREATE POLICY IF NOT EXISTS \\\"Users can update own profile\\\"
+       ON public.profiles FOR UPDATE
+       USING (auth.uid() = id)
+       WITH CHECK (auth.uid() = id);
+     
+     -- 4. 建立自動建立 profile 的觸發器函數
+     CREATE OR REPLACE FUNCTION public.handle_new_user()
+     RETURNS TRIGGER AS \\\$\\\$
+     BEGIN
+       INSERT INTO public.profiles (id, email, display_name)
+       VALUES (
+         NEW.id,
+         NEW.email,
+         COALESCE(NEW.raw_user_meta_data->>'display_name', NEW.email)
+       )
+       ON CONFLICT (id) DO NOTHING;
+       RETURN NEW;
+     END;
+     \\\$\\\$ LANGUAGE plpgsql SECURITY DEFINER;
+     
+     -- 5. 建立觸發器
+     DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
+     CREATE TRIGGER on_auth_user_created
+       AFTER INSERT ON auth.users
+       FOR EACH ROW EXECUTE FUNCTION public.handle_new_user();
+   "
 
--- 4. 建立自動建立 profile 的觸發器函數
-CREATE OR REPLACE FUNCTION public.handle_new_user()
-RETURNS TRIGGER AS $$
-BEGIN
-  INSERT INTO public.profiles (id, email, display_name)
-  VALUES (
-    NEW.id,
-    NEW.email,
-    COALESCE(NEW.raw_user_meta_data->>'display_name', NEW.email)
-  );
-  RETURN NEW;
-END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+3. 自動驗證執行結果：
+   # Cursor 會自動檢查執行結果
+   # 如果有錯誤，會顯示詳細的錯誤訊息
+   # 如果成功，會顯示確認訊息`,
+          verify: `【Cursor 自動化指令】驗證用戶資料表（不需要手寫 SQL）
 
--- 5. 建立觸發器
-DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
-CREATE TRIGGER on_auth_user_created
-  AFTER INSERT ON auth.users
-  FOR EACH ROW EXECUTE FUNCTION public.handle_new_user();`,
-          verify: `【Cursor 自動化指令】驗證用戶資料表
+請自動執行以下檢查，不需要手動複製 SQL：
 
--- 1. 檢查表是否建立
-SELECT * FROM public.profiles LIMIT 1;
+1. 自動連接 Supabase 專案（如果尚未連接）：
+   npx supabase link --project-ref {{supabase_ref}} || true
 
--- 2. 檢查觸發器是否運作
--- 註冊新用戶後，檢查 profiles 表是否自動建立記錄
+2. 自動檢查表是否建立：
+   npx supabase db execute --query "SELECT * FROM public.profiles LIMIT 1;" --output json
 
--- 3. 前端測試
-const { data: { user } } = await supabase.auth.getUser();
-if (user) {
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('*')
-    .eq('id', user.id)
-    .single();
-  console.log('Profile:', profile);
-}`
+3. 前端測試：
+   const { data: { user } } = await supabase.auth.getUser();
+   if (user) {
+     const { data: profile } = await supabase
+       .from('profiles')
+       .select('*')
+       .eq('id', user.id)
+       .single();
+     console.log('Profile:', profile);
+   }`
         }
       },
       {
@@ -2345,67 +2542,85 @@ const testOAuth = async () => {
         description: "在資料庫中啟用特定表格的 Realtime 功能",
         keywords: ["realtime", "enable", "replication"],
         prompts: {
-          diagnostic: `【Cursor 自動化指令】檢查 Realtime 設定
+          diagnostic: `【Cursor 自動化指令】檢查 Realtime 設定（不需要手寫 SQL）
 
--- 檢查哪些表格已啟用 Realtime
-SELECT 
-  schemaname,
-  tablename,
-  replica_identity
-FROM pg_tables
-WHERE schemaname = 'public'
-  AND tablename IN ('{{table_name}}');
+請自動執行以下檢查，不需要手動複製 SQL：
 
--- 檢查 replication 設定
-SELECT * FROM pg_publication_tables;`,
-          fix: `【Cursor 自動化指令】自動啟用表格 Realtime
+1. 自動連接 Supabase 專案（如果尚未連接）：
+   npx supabase link --project-ref {{supabase_ref}} || true
 
-請在 Supabase SQL Editor 執行：
+2. 自動檢查哪些表格已啟用 Realtime：
+   npx supabase db execute --query "
+     SELECT 
+       schemaname,
+       tablename,
+       replica_identity
+     FROM pg_tables
+     WHERE schemaname = 'public'
+       AND tablename IN ('{{table_name}}');
+   " --output json
 
--- 1. 啟用表格的 Realtime（方法一：使用 Dashboard）
--- Dashboard > Database > Replication > 選擇表格 > Enable
+3. 自動檢查 replication 設定：
+   npx supabase db execute --query "SELECT * FROM pg_publication_tables;" --output json`,
+          fix: `【Cursor 自動化指令】自動啟用表格 Realtime（不需要手寫 SQL）
 
--- 2. 啟用表格的 Realtime（方法二：使用 SQL）
--- 首先建立 publication（如果不存在）
-CREATE PUBLICATION supabase_realtime FOR TABLE {{table_name}};
+請自動執行以下操作，不需要手動複製 SQL：
 
--- 或將表格加入現有 publication
-ALTER PUBLICATION supabase_realtime ADD TABLE {{table_name}};
+1. 自動連接 Supabase 專案（如果尚未連接）：
+   npx supabase link --project-ref {{supabase_ref}} || true
 
--- 3. 設定 replica identity（用於 UPDATE/DELETE 事件）
-ALTER TABLE {{table_name}} REPLICA IDENTITY FULL;
+2. 自動啟用表格的 Realtime：
+   npx supabase db execute --query "
+     -- 方法一：使用 Dashboard（推薦）
+     -- Dashboard > Database > Replication > 選擇表格 > Enable
+     
+     -- 方法二：使用 SQL
+     -- 首先建立 publication（如果不存在）
+     CREATE PUBLICATION IF NOT EXISTS supabase_realtime;
+     
+     -- 或將表格加入現有 publication
+     ALTER PUBLICATION supabase_realtime ADD TABLE {{table_name}};
+     
+     -- 設定 replica identity（用於 UPDATE/DELETE 事件）
+     ALTER TABLE {{table_name}} REPLICA IDENTITY FULL;
+   "
 
--- 4. 前端訂閱實作
-const subscription = supabase
-  .channel('{{channel_name}}')
-  .on(
-    'postgres_changes',
-    {
-      event: '*', // INSERT, UPDATE, DELETE
-      schema: 'public',
-      table: '{{table_name}}',
-      filter: 'user_id=eq.' + userId // 可選：過濾條件
-    },
-    (payload) => {
-      console.log('Change received!', payload);
-      // 自動更新 UI
-      if (payload.eventType === 'INSERT') {
-        setItems(prev => [...prev, payload.new]);
-      } else if (payload.eventType === 'UPDATE') {
-        setItems(prev => prev.map(item => 
-          item.id === payload.new.id ? payload.new : item
-        ));
-      } else if (payload.eventType === 'DELETE') {
-        setItems(prev => prev.filter(item => item.id !== payload.old.id));
-      }
-    }
-  )
-  .subscribe();
+3. 前端訂閱實作：
+   const subscription = supabase
+     .channel('{{channel_name}}')
+     .on(
+       'postgres_changes',
+       {
+         event: '*', // INSERT, UPDATE, DELETE
+         schema: 'public',
+         table: '{{table_name}}',
+         filter: 'user_id=eq.' + userId // 可選：過濾條件
+       },
+       (payload) => {
+         console.log('Change received!', payload);
+         // 自動更新 UI
+         if (payload.eventType === 'INSERT') {
+           setItems(prev => [...prev, payload.new]);
+         } else if (payload.eventType === 'UPDATE') {
+           setItems(prev => prev.map(item => 
+             item.id === payload.new.id ? payload.new : item
+           ));
+         } else if (payload.eventType === 'DELETE') {
+           setItems(prev => prev.filter(item => item.id !== payload.old.id));
+         }
+       }
+     )
+     .subscribe();
+   
+   // 清理訂閱（在組件卸載時）
+   return () => {
+     subscription.unsubscribe();
+   };
 
-// 5. 清理訂閱（在組件卸載時）
-return () => {
-  subscription.unsubscribe();
-};`,
+4. 自動驗證執行結果：
+   # Cursor 會自動檢查執行結果
+   # 如果有錯誤，會顯示詳細的錯誤訊息
+   # 如果成功，會顯示確認訊息`,
           verify: `【Cursor 自動化指令】驗證 Realtime 訂閱
 
 // 1. 測試訂閱是否正常連線
@@ -2528,93 +2743,105 @@ return () => {
         prompts: {
           diagnostic: `【Cursor 自動化指令】檢查 Edge Functions 設定
 
+請自動執行以下檢查：
+
 1. 檢查是否已安裝 Supabase CLI：
-npx supabase --version
+   npx supabase --version
 
 2. 檢查專案結構：
-ls -la supabase/functions/
+   ls -la supabase/functions/ || echo "Functions 目錄不存在"
 
 3. 檢查是否已登入：
-npx supabase login`,
+   npx supabase login || echo "尚未登入"
+
+4. 自動連接 Supabase 專案（如果尚未連接）：
+   npx supabase link --project-ref {{supabase_ref}} || true`,
           fix: `【Cursor 自動化指令】自動建立 Edge Function
 
-1. 初始化 Supabase 專案（如果尚未初始化）：
-npx supabase init
+請自動執行以下操作：
 
-2. 建立新的 Edge Function：
-npx supabase functions new {{function_name}}
+1. 自動連接 Supabase 專案（如果尚未連接）：
+   npx supabase link --project-ref {{supabase_ref}} || true
 
-3. 這會建立以下結構：
-supabase/
-  functions/
-    {{function_name}}/
-      index.ts
+2. 初始化 Supabase 專案（如果尚未初始化）：
+   npx supabase init || echo "專案已初始化"
 
-4. 基本 Edge Function 模板：
-// supabase/functions/{{function_name}}/index.ts
-import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+3. 建立新的 Edge Function：
+   npx supabase functions new {{function_name}}
 
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers":
-    "authorization, x-client-info, apikey, content-type",
-};
+4. 這會建立以下結構：
+   supabase/
+     functions/
+       {{function_name}}/
+         index.ts
 
-serve(async (req) => {
-  // 處理 CORS preflight
-  if (req.method === "OPTIONS") {
-    return new Response(null, { headers: corsHeaders });
-  }
-
-  try {
-    // 建立 Supabase client
-    const supabaseClient = createClient(
-      Deno.env.get("SUPABASE_URL") ?? "",
-      Deno.env.get("SUPABASE_ANON_KEY") ?? "",
-      {
-        global: {
-          headers: { Authorization: req.headers.get("Authorization")! },
-        },
-      }
-    );
-
-    // 取得請求資料
-    const { data, error } = await req.json();
-
-    // 實作你的邏輯
-    const result = await supabaseClient
-      .from("your_table")
-      .select("*")
-      .limit(10);
-
-    return new Response(
-      JSON.stringify({ data: result.data, error: result.error }),
-      {
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-        status: 200,
-      }
-    );
-  } catch (error) {
-    return new Response(
-      JSON.stringify({ error: error.message }),
-      {
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-        status: 400,
-      }
-    );
-  }
-});`,
+5. 基本 Edge Function 模板：
+   // supabase/functions/{{function_name}}/index.ts
+   import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
+   import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+   
+   const corsHeaders = {
+     "Access-Control-Allow-Origin": "*",
+     "Access-Control-Allow-Headers":
+       "authorization, x-client-info, apikey, content-type",
+   };
+   
+   serve(async (req) => {
+     // 處理 CORS preflight
+     if (req.method === "OPTIONS") {
+       return new Response(null, { headers: corsHeaders });
+     }
+   
+     try {
+       // 建立 Supabase client
+       const supabaseClient = createClient(
+         Deno.env.get("SUPABASE_URL") ?? "",
+         Deno.env.get("SUPABASE_ANON_KEY") ?? "",
+         {
+           global: {
+             headers: { Authorization: req.headers.get("Authorization")! },
+           },
+         }
+       );
+   
+       // 取得請求資料
+       const { data, error } = await req.json();
+   
+       // 實作你的邏輯
+       const result = await supabaseClient
+         .from("your_table")
+         .select("*")
+         .limit(10);
+   
+       return new Response(
+         JSON.stringify({ data: result.data, error: result.error }),
+         {
+           headers: { ...corsHeaders, "Content-Type": "application/json" },
+           status: 200,
+         }
+       );
+     } catch (error) {
+       return new Response(
+         JSON.stringify({ error: error.message }),
+         {
+           headers: { ...corsHeaders, "Content-Type": "application/json" },
+           status: 400,
+         }
+       );
+     }
+   });`,
           verify: `【Cursor 自動化指令】驗證 Edge Function 結構
 
+請自動執行以下檢查：
+
 1. 檢查檔案是否建立：
-ls -la supabase/functions/{{function_name}}/
+   ls -la supabase/functions/{{function_name}}/
 
 2. 檢查語法：
-deno check supabase/functions/{{function_name}}/index.ts
+   deno check supabase/functions/{{function_name}}/index.ts || echo "語法檢查完成"
 
 3. 本地測試（需要先啟動 Supabase）：
-npx supabase functions serve {{function_name}}`
+   npx supabase functions serve {{function_name}} || echo "本地測試需要先啟動 Supabase"`
         }
       },
       {
@@ -2625,51 +2852,63 @@ npx supabase functions serve {{function_name}}`
         prompts: {
           diagnostic: `【Cursor 自動化指令】檢查部署狀態
 
-1. 檢查已部署的 Functions：
-npx supabase functions list
+請自動執行以下檢查：
 
-2. 檢查環境變數：
-npx supabase secrets list`,
+1. 自動連接 Supabase 專案（如果尚未連接）：
+   npx supabase link --project-ref {{supabase_ref}} || true
+
+2. 檢查已部署的 Functions：
+   npx supabase functions list
+
+3. 檢查環境變數：
+   npx supabase secrets list`,
           fix: `【Cursor 自動化指令】自動部署 Edge Function
 
-1. 設定 Supabase 專案連結：
-npx supabase link --project-ref {{supabase_ref}}
+請自動執行以下操作：
+
+1. 自動連接 Supabase 專案（如果尚未連接）：
+   npx supabase link --project-ref {{supabase_ref}} || true
 
 2. 設定 Secrets（環境變數）：
-npx supabase secrets set RESEND_API_KEY={{resend_api_key}}
+   npx supabase secrets set RESEND_API_KEY={{resend_api_key}}
 
 3. 部署 Function：
-npx supabase functions deploy {{function_name}}
+   npx supabase functions deploy {{function_name}}
 
 4. 或部署所有 Functions：
-npx supabase functions deploy
+   npx supabase functions deploy
 
 5. 測試部署的 Function：
-curl -i --location --request POST \\
-  'https://{{supabase_ref}}.supabase.co/functions/v1/{{function_name}}' \\
-  --header 'Authorization: Bearer YOUR_ANON_KEY' \\
-  --header 'Content-Type: application/json' \\
-  --data '{"key":"value"}'
+   curl -i --location --request POST \\
+     'https://{{supabase_ref}}.supabase.co/functions/v1/{{function_name}}' \\
+     --header 'Authorization: Bearer YOUR_ANON_KEY' \\
+     --header 'Content-Type: application/json' \\
+     --data '{"key":"value"}'
 
 6. 前端呼叫 Edge Function：
-const { data, error } = await supabase.functions.invoke('{{function_name}}', {
-  body: { key: 'value' }
-});`,
+   const { data, error } = await supabase.functions.invoke('{{function_name}}', {
+     body: { key: 'value' }
+   });`,
           verify: `【Cursor 自動化指令】驗證部署成功
 
-1. 檢查 Function 是否部署：
-npx supabase functions list
+請自動執行以下檢查：
 
-2. 檢查 Function logs：
-npx supabase functions logs your-function-name
+1. 自動連接 Supabase 專案（如果尚未連接）：
+   npx supabase link --project-ref {{supabase_ref}} || true
 
-3. 測試 Function 端點：
-const testFunction = async () => {
-  const { data, error } = await supabase.functions.invoke('your-function-name', {
-    body: { test: true }
-  });
-  console.log('Function result:', { data, error });
-};`
+2. 檢查 Function 是否部署：
+   npx supabase functions list
+
+3. 檢查 Function logs：
+   npx supabase functions logs {{function_name}}
+
+4. 測試 Function 端點：
+   const testFunction = async () => {
+     const { data, error } = await supabase.functions.invoke('{{function_name}}', {
+       body: { test: true }
+     });
+     console.log('Function result:', { data, error });
+   };`
         }
       },
       {
@@ -9513,6 +9752,789 @@ IF 節點（判斷是否超過 24 小時）
 3. 模擬異常情況
 4. 確認告警是否發送`
         }
+      }
+    ]
+  },
+  // ===== SQL Editor 功能 =====
+  {
+    id: 58,
+    title: "Supabase SQL Editor - PRIVATE 資料夾建立",
+    shortTitle: "SQL Editor 資料夾",
+    purpose: "使用 SQL Editor 在 PRIVATE bucket 下建立資料夾，自動生成完整的 SQL 腳本，可直接複製到 Cursor 執行。",
+    badge: "common",
+    category: "supabase",
+    keywords: ["sql", "editor", "private", "folder", "directory", "storage", "bucket", "資料夾"],
+    checklist: [
+      { id: "58-1", label: "確認 PRIVATE bucket 已存在", completed: false },
+      { id: "58-2", label: "填寫資料夾名稱", completed: false },
+      { id: "58-3", label: "透過 Cursor 自動執行 SQL（使用 Supabase CLI）", completed: false },
+      { id: "58-4", label: "確認執行成功（無錯誤訊息）", completed: false },
+      { id: "58-5", label: "驗證資料夾已建立", completed: false },
+    ],
+    prompts: [
+      {
+        id: "p58-1",
+        title: "1. 在 PRIVATE bucket 下建立資料夾",
+        description: "使用 SQL 在 PRIVATE bucket 下建立新資料夾，並設定適當的 RLS 政策",
+        keywords: ["private", "folder", "create", "sql"],
+        variables: [
+          {
+            key: "folder_name",
+            label: "資料夾名稱",
+            placeholder: "例如：documents, uploads, user-files",
+            description: "輸入要在 PRIVATE bucket 下建立的資料夾名稱（只能包含小寫字母、數字、連字號和底線）"
+          }
+        ],
+        prompts: {
+          diagnostic: `【Cursor 自動化指令】自動檢查 PRIVATE bucket 和資料夾狀態（不需要手寫 SQL）
+
+請自動執行以下檢查，不需要手動複製 SQL：
+
+1. 自動連接 Supabase 專案（如果尚未連接）：
+   npx supabase link --project-ref {{supabase_ref}} || true
+
+2. 自動執行檢查 SQL（使用 Supabase CLI）：
+   npx supabase db execute --query "
+     -- 檢查 PRIVATE bucket 是否存在
+     SELECT id, name, public, created_at
+     FROM storage.buckets
+     WHERE id = 'private' OR name = 'private';
+     
+     -- 檢查現有資料夾結構
+     SELECT DISTINCT 
+       (string_to_array(name, '/'))[1] as folder_name,
+       COUNT(*) as file_count
+     FROM storage.objects
+     WHERE bucket_id = 'private'
+     GROUP BY (string_to_array(name, '/'))[1]
+     ORDER BY folder_name;
+     
+     -- 檢查資料夾權限設定
+     SELECT policyname, cmd, qual
+     FROM pg_policies
+     WHERE tablename = 'objects' 
+     AND schemaname = 'storage'
+     AND qual::text LIKE '%private%';
+     
+     -- 檢查是否已有相同名稱的資料夾
+     SELECT COUNT(*) as existing_folders
+     FROM storage.objects
+     WHERE bucket_id = 'private'
+     AND name LIKE '{{folder_name}}/%';
+   " --output json
+
+3. 在 Cursor 中顯示結果：
+   # Cursor 會自動解析 JSON 並顯示：
+   # ✅ PRIVATE bucket 是否存在
+   # ✅ 現有資料夾列表
+   # ✅ 資料夾權限設定
+   # ⚠️ 是否已有相同名稱的資料夾`,
+          fix: `【Cursor 自動化指令】自動在 PRIVATE bucket 下建立資料夾：{{folder_name}}（不需要手寫 SQL）
+
+請自動執行以下操作，不需要手動複製 SQL：
+
+1. 自動連接 Supabase 專案（如果尚未連接）：
+   npx supabase link --project-ref {{supabase_ref}} || true
+
+2. 自動執行 SQL 建立資料夾（使用 Supabase CLI）：
+   npx supabase db execute --query "
+-- ============================================
+-- 在 PRIVATE bucket 下建立資料夾：{{folder_name}}
+-- 生成時間：自動生成
+-- ============================================
+
+-- 1. 確認 PRIVATE bucket 存在（如果不存在則建立）
+INSERT INTO storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
+VALUES (
+  'private',
+  'private',
+  false, -- PRIVATE bucket 為私有
+  52428800, -- 50MB 檔案大小限制（可調整）
+  NULL -- 允許所有檔案類型（可設定特定類型）
+)
+ON CONFLICT (id) DO UPDATE
+SET 
+  public = false,
+  file_size_limit = COALESCE(EXCLUDED.file_size_limit, 52428800);
+
+-- 2. 建立資料夾結構（透過建立一個隱藏的 .keep 檔案）
+-- 這是一個常見的做法，因為 Supabase Storage 是物件儲存，沒有真正的「資料夾」概念
+-- 我們透過建立一個檔案來「建立」資料夾結構
+INSERT INTO storage.objects (bucket_id, name, owner, metadata)
+VALUES (
+  'private',
+  '{{folder_name}}/.keep',
+  auth.uid(),
+  '{"folder": true, "created_by": "sql_editor"}'::jsonb
+)
+ON CONFLICT (bucket_id, name) DO NOTHING;
+
+-- 3. 設定資料夾的 RLS 政策（允許已登入用戶在自己的資料夾中操作）
+-- 允許用戶在自己的資料夾中上傳檔案
+CREATE POLICY IF NOT EXISTS "Users can upload to {{folder_name}} folder"
+ON storage.objects FOR INSERT
+TO authenticated
+WITH CHECK (
+  bucket_id = 'private' AND
+  name LIKE '{{folder_name}}/%' AND
+  (storage.foldername(name))[2] = auth.uid()::text
+);
+
+-- 允許用戶讀取自己資料夾中的檔案
+CREATE POLICY IF NOT EXISTS "Users can read from {{folder_name}} folder"
+ON storage.objects FOR SELECT
+TO authenticated
+USING (
+  bucket_id = 'private' AND
+  name LIKE '{{folder_name}}/%' AND
+  (
+    -- 用戶可以讀取自己資料夾中的檔案
+    (storage.foldername(name))[2] = auth.uid()::text
+    OR
+    -- 管理員可以讀取所有檔案（如果 members 表存在）
+    EXISTS (
+      SELECT 1 FROM members
+      WHERE user_id = auth.uid() AND role = 'admin'
+    )
+  )
+);
+
+-- 允許用戶更新自己資料夾中的檔案
+CREATE POLICY IF NOT EXISTS "Users can update {{folder_name}} folder files"
+ON storage.objects FOR UPDATE
+TO authenticated
+USING (
+  bucket_id = 'private' AND
+  name LIKE '{{folder_name}}/%' AND
+  (storage.foldername(name))[2] = auth.uid()::text
+)
+WITH CHECK (
+  bucket_id = 'private' AND
+  name LIKE '{{folder_name}}/%' AND
+  (storage.foldername(name))[2] = auth.uid()::text
+);
+
+-- 允許用戶刪除自己資料夾中的檔案
+CREATE POLICY IF NOT EXISTS "Users can delete from {{folder_name}} folder"
+ON storage.objects FOR DELETE
+TO authenticated
+USING (
+  bucket_id = 'private' AND
+  name LIKE '{{folder_name}}/%' AND
+  (storage.foldername(name))[2] = auth.uid()::text
+);
+
+-- 4. 建立索引以提升查詢效能（如果資料量大）
+CREATE INDEX IF NOT EXISTS idx_objects_private_{{folder_name}}
+ON storage.objects (bucket_id, name)
+WHERE bucket_id = 'private' AND name LIKE '{{folder_name}}/%';
+
+-- 5. 建立註解說明
+COMMENT ON POLICY "Users can upload to {{folder_name}} folder" ON storage.objects IS 
+  '允許已登入用戶在 {{folder_name}} 資料夾中上傳檔案，檔案路徑格式：{{folder_name}}/{user_id}/filename';
+COMMENT ON POLICY "Users can read from {{folder_name}} folder" ON storage.objects IS 
+  '允許已登入用戶讀取自己 {{folder_name}} 資料夾中的檔案，管理員可讀取所有檔案';
+
+   "
+
+3. 自動驗證執行結果：
+   # Cursor 會自動檢查執行結果
+   # 如果有錯誤，會顯示詳細的錯誤訊息
+   # 如果成功，會顯示確認訊息
+
+4. 資料夾結構：private/{{folder_name}}/{user_id}/filename
+
+【注意】請在專案設定中填入 {{folder_name}} 和 {{supabase_ref}}，系統會自動替換。`,
+          verify: `【Cursor 自動化指令】自動驗證 {{folder_name}} 資料夾已建立（不需要手寫 SQL）
+
+請自動執行以下驗證步驟：
+
+1. 自動執行驗證 SQL（使用 Supabase CLI）：
+   npx supabase db execute --query "
+     -- 檢查資料夾是否已建立
+     SELECT 
+       name,
+       created_at,
+       metadata->>'folder' as is_folder,
+       metadata->>'created_by' as created_by
+     FROM storage.objects
+     WHERE bucket_id = 'private'
+     AND name LIKE '{{folder_name}}/%'
+     ORDER BY created_at DESC
+     LIMIT 10;
+     
+     -- 檢查 RLS 政策是否已建立
+     SELECT 
+       policyname,
+       cmd,
+       CASE 
+         WHEN qual::text LIKE '%{{folder_name}}%' THEN '資料夾政策'
+         ELSE '其他政策'
+       END as policy_type
+     FROM pg_policies
+     WHERE tablename = 'objects' 
+     AND schemaname = 'storage'
+     AND policyname LIKE '%{{folder_name}}%';
+   " --output json
+
+2. 自動解析結果並檢查：
+   # Cursor 會自動檢查：
+   # ✅ 資料夾 .keep 檔案是否存在
+   # ✅ RLS 政策是否已建立（4 個政策：INSERT, SELECT, UPDATE, DELETE）
+   # ✅ 索引是否已建立
+   
+   # 如果缺少某個政策，會自動建議修正：
+   # ⚠️ 缺少 INSERT 政策，建議執行修正步驟
+
+3. 測試上傳功能（使用 Supabase Client）：
+   const { data, error } = await supabase.storage
+     .from('private')
+     .upload('{{folder_name}}/' + userId + '/test.txt', 'test content', {
+       upsert: false
+     });
+   
+   if (error) {
+     console.error('上傳失敗:', error);
+   } else {
+     console.log('上傳成功:', data);
+   }
+
+4. 測試讀取功能：
+   const { data, error } = await supabase.storage
+     .from('private')
+     .list('{{folder_name}}/' + userId, {
+       limit: 10,
+       offset: 0
+     });
+   
+   if (error) {
+     console.error('讀取失敗:', error);
+   } else {
+     console.log('資料夾內容:', data);
+   }
+
+5. 自動顯示驗證結果：
+   ✅ 資料夾 .keep 檔案已建立
+   ✅ RLS 政策已建立（4 個政策：INSERT, SELECT, UPDATE, DELETE）
+   ✅ 索引已建立
+   ✅ 可以正常上傳和讀取檔案`
+        }
+      }
+    ],
+    nextSteps: [2, 25], // Storage 串接, 資料庫遷移
+    workflowChains: [
+      {
+        id: "sql-editor-folder",
+        name: "SQL Editor 資料夾建立流程",
+        description: "使用 SQL Editor 建立 PRIVATE 資料夾 → 設定 RLS → 驗證功能",
+        steps: [58, 2],
+        tags: ["SQL", "Storage", "資料夾"]
+      }
+    ]
+  },
+  // ===== n8n Google Sheets API 串接 =====
+  {
+    id: 59,
+    title: "n8n Google Sheets API 串接",
+    shortTitle: "Google Sheets 串接",
+    purpose: "自動化 n8n 與 Google Sheets API 的串接流程，包含 OAuth 設定、Service Account 設定、錯誤處理等完整解決方案。",
+    badge: "common",
+    category: "n8n",
+    keywords: ["n8n", "google", "sheets", "api", "oauth", "service", "account", "automation"],
+    checklist: [
+      { id: "59-1", label: "在 Google Cloud Console 啟用 API", completed: false },
+      { id: "59-2", label: "設定 OAuth 同意畫面", completed: false },
+      { id: "59-3", label: "建立 OAuth 2.0 客戶端憑證", completed: false },
+      { id: "59-4", label: "在 n8n 中建立 Google Sheets 憑證", completed: false },
+      { id: "59-5", label: "測試 Google Sheets 連線", completed: false },
+    ],
+    prompts: [
+      {
+        id: "p59-1",
+        title: "1. Google Cloud Console 設定",
+        description: "在 Google Cloud Console 中啟用必要的 API 並設定 OAuth",
+        keywords: ["google", "cloud", "console", "oauth", "api"],
+        prompts: {
+          diagnostic: `【Cursor 自動化指令】檢查 Google Cloud Console 設定
+
+請檢查以下項目：
+1. 專案是否已建立
+2. Google Sheets API 是否已啟用
+3. Google Drive API 是否已啟用
+4. OAuth consent screen 是否已設定
+5. OAuth 2.0 客戶端是否已建立
+
+檢查步驟：
+1. 前往 https://console.cloud.google.com/
+2. 確認專案已建立
+3. 前往 APIs & Services > Library
+4. 檢查 Google Sheets API 和 Google Drive API 是否已啟用
+5. 前往 APIs & Services > OAuth consent screen
+6. 檢查是否已設定應用程式資訊和 Scopes`,
+          fix: `【Cursor 自動化指令】自動設定 Google Cloud Console
+
+請按照以下步驟在 Google Cloud Console 中設定：
+
+1. 建立或選擇專案：
+   - 前往 https://console.cloud.google.com/
+   - 建立新專案或選擇現有專案
+   - 記下專案 ID
+
+2. 啟用必要的 API：
+   - 前往 APIs & Services > Library
+   - 搜尋 "Google Sheets API" > Enable
+   - 搜尋 "Google Drive API" > Enable
+
+3. 設定 OAuth 同意畫面：
+   - 前往 APIs & Services > OAuth consent screen
+   - 選擇應用程式類型：Internal（僅限 Google Workspace）或 External（公開使用）
+   - 填寫應用程式資訊：
+     * App name: n8n Google Sheets Integration
+     * User support email: {{user_email}}
+     * Developer contact information: {{user_email}}
+   - 設定 Scopes（權限範圍）：
+     * https://www.googleapis.com/auth/spreadsheets
+     * https://www.googleapis.com/auth/drive.readonly
+   - 如果是 External 應用程式，添加測試使用者（開發階段）
+
+4. 建立 OAuth 2.0 客戶端憑證：
+   - 前往 APIs & Services > Credentials
+   - 點擊 "Create Credentials" > "OAuth client ID"
+   - 選擇應用程式類型：Web application
+   - 設定名稱：n8n Google Sheets
+   - 設定 Authorized redirect URIs：
+     * n8n Cloud: https://YOUR_N8N_DOMAIN/rest/oauth2-credential/callback
+     * Self-hosted（本地）: http://localhost:5678/rest/oauth2-credential/callback
+     * Self-hosted（伺服器）: https://your-n8n-domain.com/rest/oauth2-credential/callback
+   - 點擊 "Create"
+   - 複製並保存 Client ID 和 Client Secret（只會顯示一次）
+
+【注意】請妥善保存 Client ID 和 Client Secret，後續在 n8n 中會用到。`,
+          verify: `【Cursor 自動化指令】驗證 Google Cloud Console 設定
+
+請確認以下項目：
+1. ✅ Google Sheets API 已啟用
+2. ✅ Google Drive API 已啟用
+3. ✅ OAuth consent screen 已設定
+4. ✅ OAuth 2.0 客戶端已建立
+5. ✅ Client ID 和 Client Secret 已複製保存
+6. ✅ Redirect URI 已正確設定（與 n8n 中的一致）`
+        }
+      },
+      {
+        id: "p59-2",
+        title: "2. n8n 憑證設定",
+        description: "在 n8n 中建立 Google Sheets OAuth2 憑證",
+        keywords: ["n8n", "credential", "oauth2", "google", "sheets"],
+        prompts: {
+          diagnostic: `【Cursor 自動化指令】檢查 n8n 憑證設定
+
+請檢查以下項目：
+1. n8n 中是否已建立 Google Sheets 憑證
+2. Client ID 和 Client Secret 是否已填入
+3. Redirect URI 是否與 Google Console 中的一致
+4. 是否已完成認證（Connect 成功）`,
+          fix: `【Cursor 自動化指令】在 n8n 中建立 Google Sheets 憑證
+
+請按照以下步驟在 n8n 中設定：
+
+1. 建立 Google Sheets 憑證：
+   - 在 n8n 中前往 Credentials > New credentials
+   - 選擇 "Google Sheets OAuth2 API" 或 "Google OAuth2 API"
+   - 填寫資訊：
+     * Credential Name: Google Sheets API
+     * Client ID: 從 Google Cloud Console 複製
+     * Client Secret: 從 Google Cloud Console 複製
+     * OAuth Redirect URL: 確認與 Google Console 中設定的一致
+
+2. 設定 Scopes（如果需要自訂）：
+   - https://www.googleapis.com/auth/spreadsheets
+   - https://www.googleapis.com/auth/drive.readonly
+
+3. 點擊 "Connect" 或 "Authenticate"
+   - 會跳出 Google 授權畫面
+   - 選擇要授權的 Google 帳號
+   - 確認權限後，n8n 會自動完成認證
+
+4. 保存憑證
+
+【常見問題】
+- Redirect URI 不匹配：確認 Google Console 和 n8n 中的 Redirect URI 完全一致
+- OAuth 同意畫面未發布：如果是 External 應用程式，需要添加測試使用者
+- API 未啟用：確認 Google Sheets API 和 Google Drive API 已啟用`,
+          verify: `【Cursor 自動化指令】測試 n8n 憑證
+
+1. 建立新的 Workflow
+2. 添加 Google Sheets 節點
+3. 選擇剛建立的憑證
+4. 選擇操作：Read > Get Many（讀取資料）
+5. 填寫 Spreadsheet ID（從 Google Sheets URL 取得）
+6. 執行測試，確認可以正常讀取資料
+
+如果成功，表示憑證設定正確。`
+        }
+      },
+      {
+        id: "p59-3",
+        title: "3. Service Account 設定（企業方案）",
+        description: "使用 Service Account 代替 OAuth，適合自動化場景",
+        keywords: ["service", "account", "json", "key", "automation"],
+        prompts: {
+          diagnostic: `【Cursor 自動化指令】檢查 Service Account 設定
+
+請檢查以下項目：
+1. 是否已建立 Service Account
+2. 是否已下載 JSON 金鑰檔案
+3. 是否已在 n8n 中使用 Service Account 憑證`,
+          fix: `【Cursor 自動化指令】設定 Service Account
+
+請按照以下步驟設定 Service Account：
+
+1. 建立 Service Account：
+   - 前往 Google Cloud Console > APIs & Services > Credentials
+   - 點擊 "Create Credentials" > "Service account"
+   - 填寫資訊：
+     * Service account name: n8n-sheets-service
+     * Service account ID: n8n-sheets-service
+     * Description: Service account for n8n Google Sheets integration
+   - 點擊 "Create and Continue"
+   - 選擇角色（可選）：Editor 或自訂角色
+   - 點擊 "Done"
+
+2. 建立金鑰：
+   - 點擊剛建立的 Service Account
+   - 前往 "Keys" 標籤
+   - 點擊 "Add Key" > "Create new key"
+   - 選擇 JSON 格式
+   - 下載 JSON 金鑰檔案（妥善保存，只會顯示一次）
+
+3. 在 n8n 中使用 Service Account：
+   - 在 n8n 中建立新憑證
+   - 選擇 "Google Service Account" 類型
+   - 上傳 JSON 金鑰檔案或貼上 JSON 內容
+   - 保存憑證
+
+4. 在 Google Sheets 中分享試算表：
+   - 開啟要存取的 Google Sheets
+   - 點擊 "分享"
+   - 輸入 Service Account Email（格式：service-account-name@project-id.iam.gserviceaccount.com）
+   - 設定權限：編輯者或檢視者
+   - 點擊 "完成"
+
+【優點】
+- ✅ 不需要使用者授權
+- ✅ 適合自動化場景
+- ✅ 更安全（不需要使用者互動）
+- ✅ Token 不會過期（除非手動撤銷）`,
+          verify: `【Cursor 自動化指令】測試 Service Account
+
+1. 在 n8n 中使用 Service Account 憑證
+2. 建立 Google Sheets 節點
+3. 選擇已分享給 Service Account 的試算表
+4. 執行測試，確認可以正常讀寫資料`
+        }
+      },
+      {
+        id: "p59-4",
+        title: "4. 自動化資料同步工作流程",
+        description: "建立自動同步資料到 Google Sheets 的 n8n 工作流程",
+        keywords: ["workflow", "sync", "automation", "data"],
+        prompts: {
+          diagnostic: `【Cursor 自動化指令】檢查資料同步工作流程
+
+請檢查以下項目：
+1. 是否有自動同步資料到 Google Sheets 的需求
+2. 資料來源是什麼（Webhook、資料庫、API 等）
+3. 同步頻率是什麼（即時、定時等）`,
+          fix: `【Cursor 自動化指令】建立自動化資料同步工作流程
+
+1. 建立資料同步流程：
+   Webhook 節點（接收資料）
+     ↓
+   Function 節點（資料處理）
+     ↓
+   Google Sheets 節點（寫入資料）
+     ↓
+   Error Trigger（錯誤處理）
+
+2. Webhook 節點設定：
+   - HTTP Method: POST
+   - Path: /webhook/sheets-sync
+   - Response Mode: Respond When Last Node Finishes
+
+3. Function 節點（資料處理）：
+   // 格式化資料
+   const items = $input.all();
+   const formattedData = items.map(item => ({
+     timestamp: new Date().toISOString(),
+     ...item.json
+   }));
+   return formattedData;
+
+4. Google Sheets 節點設定：
+   - Operation: Append
+   - Spreadsheet ID: {{spreadsheet_id}}
+   - Range: Sheet1!A:Z
+   - Values: 使用 Function 節點處理後的資料
+
+5. Error Trigger 設定：
+   - 如果寫入失敗，發送通知（Email、LINE、Slack 等）
+
+🔗 **可串接功能**：
+- 📧 錯誤通知 → 步驟 12 (Email 自動化)
+- 📱 LINE 通知 → 步驟 36 (LINE 推播)
+- 🔄 資料來源 → 步驟 51 (n8n 表單處理)`,
+          verify: `【Cursor 自動化指令】測試資料同步工作流程
+
+1. 手動觸發 Webhook 或使用測試資料
+2. 檢查資料是否正確寫入 Google Sheets
+3. 測試錯誤處理（例如：無效的 Spreadsheet ID）
+4. 確認錯誤通知是否發送`
+        }
+      }
+    ],
+    nextSteps: [51, 12, 36],
+    workflowChains: [
+      {
+        id: "sheets-form-flow",
+        name: "表單 → Google Sheets 流程",
+        description: "表單提交後自動同步到 Google Sheets",
+        steps: [51, 59],
+        tags: ["表單", "Google Sheets", "資料同步"]
+      },
+      {
+        id: "sheets-email-flow",
+        name: "Google Sheets → Email 流程",
+        description: "Google Sheets 資料變更後自動發送 Email",
+        steps: [59, 12],
+        tags: ["Google Sheets", "Email", "自動化"]
+      }
+    ]
+  },
+  // ===== Supabase 自動化資料庫建置工具 =====
+  {
+    id: 60,
+    title: "Supabase 自動化資料庫建置工具",
+    shortTitle: "自動化建置",
+    purpose: "根據 TypeScript 類型定義或現有程式碼，自動生成完整的 Supabase 資料庫建置 SQL（包含資料表、索引、RLS、觸發器、外鍵等），並透過 Cursor 自動執行。",
+    badge: "advanced",
+    category: "supabase",
+    keywords: ["database", "builder", "auto", "generate", "sql", "typescript", "schema", "migration"],
+    checklist: [
+      { id: "60-1", label: "提供 TypeScript 類型定義或資料結構", completed: false },
+      { id: "60-2", label: "確認資料表名稱和欄位", completed: false },
+      { id: "60-3", label: "透過 Cursor 自動生成 SQL（使用 Supabase CLI）", completed: false },
+      { id: "60-4", label: "確認執行成功（無錯誤訊息）", completed: false },
+      { id: "60-5", label: "驗證資料表、索引、RLS 已建立", completed: false },
+    ],
+    prompts: [
+      {
+        id: "p60-1",
+        title: "1. 自動生成資料庫建置 SQL",
+        description: "根據 TypeScript 類型定義自動生成完整的 SQL 建置腳本",
+        keywords: ["generate", "sql", "typescript", "schema", "table"],
+        variables: [
+          {
+            key: "table_name",
+            label: "資料表名稱",
+            placeholder: "例如：members, orders, products",
+            description: "輸入要建立的資料表名稱（使用小寫字母和底線）"
+          },
+          {
+            key: "typescript_definition",
+            label: "TypeScript 類型定義",
+            placeholder: "interface Member { id: string; email: string; ... }",
+            description: "貼上 TypeScript 介面定義或資料結構（可選，如果沒有則使用簡化模式）"
+          }
+        ],
+        prompts: {
+          diagnostic: `【Cursor 自動化指令】檢查資料庫建置需求
+
+請確認以下項目：
+1. 資料表名稱是否已確定
+2. 是否有 TypeScript 類型定義或資料結構
+3. 需要哪些欄位和類型
+4. 是否需要關聯到其他資料表（外鍵）
+5. 需要什麼樣的 RLS 政策（使用者只能看自己的、公開讀取等）`,
+          fix: `【Cursor 自動化指令】自動生成並執行資料庫建置 SQL（不需要手寫 SQL）
+
+請自動執行以下操作，不需要手動複製 SQL：
+
+1. 自動連接 Supabase 專案（如果尚未連接）：
+   npx supabase link --project-ref {{supabase_ref}} || true
+
+2. 根據提供的資料結構自動生成 SQL（範例：{{table_name}} 資料表）：
+   npx supabase db execute --query "
+     -- ============================================
+     -- 自動生成：{{table_name}} 資料表
+     -- 生成時間：自動生成
+     -- ============================================
+     
+     -- 1. 建立資料表
+     CREATE TABLE IF NOT EXISTS public.{{table_name}} (
+       id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+       user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE,
+       
+       -- 基本資訊（根據 TypeScript 類型自動生成）
+       email TEXT NOT NULL,
+       display_name TEXT NOT NULL,
+       full_name TEXT,
+       phone TEXT,
+       avatar_url TEXT,
+       
+       -- 狀態與權限
+       status TEXT DEFAULT 'active' NOT NULL CHECK (status IN ('active', 'inactive', 'suspended', 'pending')),
+       role TEXT DEFAULT 'member' NOT NULL CHECK (role IN ('admin', 'member', 'guest', 'moderator')),
+       is_verified BOOLEAN DEFAULT false NOT NULL,
+       
+       -- 偏好設定
+       language TEXT DEFAULT 'zh-TW',
+       timezone TEXT DEFAULT 'Asia/Taipei',
+       notification_preferences JSONB DEFAULT '{}',
+       
+       -- 時間戳
+       created_at TIMESTAMPTZ DEFAULT now() NOT NULL,
+       updated_at TIMESTAMPTZ DEFAULT now() NOT NULL,
+       last_login_at TIMESTAMPTZ,
+       verified_at TIMESTAMPTZ
+     );
+     
+     -- 2. 建立索引
+     CREATE INDEX IF NOT EXISTS idx_{{table_name}}_user_id ON {{table_name}}(user_id);
+     CREATE INDEX IF NOT EXISTS idx_{{table_name}}_email ON {{table_name}}(email);
+     CREATE INDEX IF NOT EXISTS idx_{{table_name}}_status ON {{table_name}}(status);
+     CREATE INDEX IF NOT EXISTS idx_{{table_name}}_role ON {{table_name}}(role);
+     CREATE INDEX IF NOT EXISTS idx_{{table_name}}_created_at ON {{table_name}}(created_at DESC);
+     CREATE INDEX IF NOT EXISTS idx_{{table_name}}_email_lower ON {{table_name}}(LOWER(email));
+     
+     -- 3. 啟用 RLS
+     ALTER TABLE {{table_name}} ENABLE ROW LEVEL SECURITY;
+     
+     -- 4. 建立 RLS 政策
+     -- 使用者可以查看自己的資料
+     CREATE POLICY \\\"Users can view own {{table_name}} data\\\"
+       ON {{table_name}} FOR SELECT
+       TO authenticated
+       USING (auth.uid() = user_id);
+     
+     -- 使用者可以更新自己的資料
+     CREATE POLICY \\\"Users can update own {{table_name}} data\\\"
+       ON {{table_name}} FOR UPDATE
+       TO authenticated
+       USING (auth.uid() = user_id)
+       WITH CHECK (auth.uid() = user_id);
+     
+     -- 使用者可以插入自己的資料
+     CREATE POLICY \\\"Users can insert own {{table_name}} data\\\"
+       ON {{table_name}} FOR INSERT
+       TO authenticated
+       WITH CHECK (auth.uid() = user_id);
+     
+     -- 管理員可以查看所有資料
+     CREATE POLICY \\\"Admins can view all {{table_name}}\\\"
+       ON {{table_name}} FOR SELECT
+       TO authenticated
+       USING (
+         EXISTS (
+           SELECT 1 FROM {{table_name}}
+           WHERE user_id = auth.uid() AND role = 'admin'
+         )
+       );
+     
+     -- 管理員可以更新所有資料
+     CREATE POLICY \\\"Admins can update all {{table_name}}\\\"
+       ON {{table_name}} FOR UPDATE
+       TO authenticated
+       USING (
+         EXISTS (
+           SELECT 1 FROM {{table_name}}
+           WHERE user_id = auth.uid() AND role = 'admin'
+         )
+       );
+     
+     -- 5. 建立更新時間觸發器函數（如果尚未存在）
+     CREATE OR REPLACE FUNCTION update_updated_at_column()
+     RETURNS TRIGGER AS \\\$\\\$
+     BEGIN
+       NEW.updated_at = now();
+       RETURN NEW;
+     END;
+     \\\$\\\$ LANGUAGE plpgsql;
+     
+     -- 6. 建立觸發器
+     DROP TRIGGER IF EXISTS update_{{table_name}}_updated_at ON {{table_name}};
+     CREATE TRIGGER update_{{table_name}}_updated_at
+       BEFORE UPDATE ON {{table_name}}
+       FOR EACH ROW
+       EXECUTE FUNCTION update_updated_at_column();
+     
+     -- 7. 建立註解
+     COMMENT ON TABLE {{table_name}} IS '自動生成的資料表：{{table_name}}';
+     COMMENT ON COLUMN {{table_name}}.user_id IS '關聯到 auth.users 的 UUID';
+     COMMENT ON COLUMN {{table_name}}.status IS '狀態：active, inactive, suspended, pending';
+     COMMENT ON COLUMN {{table_name}}.role IS '角色：admin, member, guest, moderator';
+   "
+
+3. 自動驗證執行結果：
+   # Cursor 會自動檢查執行結果
+   # 如果有錯誤，會顯示詳細的錯誤訊息
+   # 如果成功，會顯示確認訊息
+
+【注意】
+- 請在專案設定中填入 {{table_name}} 和 {{supabase_ref}}，系統會自動替換
+- 如果提供了 TypeScript 類型定義，系統會自動分析並生成對應的 SQL
+- 生成的 SQL 包含：資料表、索引、RLS 政策、觸發器、註解`,
+          verify: `【Cursor 自動化指令】驗證資料庫建置成功
+
+請自動執行以下檢查，不需要手動複製 SQL：
+
+1. 自動連接 Supabase 專案（如果尚未連接）：
+   npx supabase link --project-ref {{supabase_ref}} || true
+
+2. 自動檢查資料表是否建立：
+   npx supabase db execute --query "SELECT table_name FROM information_schema.tables WHERE table_schema = 'public' AND table_name = '{{table_name}}';" --output json
+
+3. 自動檢查索引是否建立：
+   npx supabase db execute --query "SELECT indexname FROM pg_indexes WHERE tablename = '{{table_name}}';" --output json
+
+4. 自動檢查 RLS 政策是否建立：
+   npx supabase db execute --query "SELECT policyname FROM pg_policies WHERE tablename = '{{table_name}}';" --output json
+
+5. 自動檢查觸發器是否建立：
+   npx supabase db execute --query "SELECT trigger_name FROM information_schema.triggers WHERE event_object_table = '{{table_name}}';" --output json
+
+6. 前端測試（可選）：
+   // 測試插入資料
+   const { data, error } = await supabase
+     .from('{{table_name}}')
+     .insert({ email: 'test@example.com', display_name: 'Test User' })
+     .select();
+   console.log('Insert result:', { data, error });
+   
+   // 測試查詢資料
+   const { data: queryData, error: queryError } = await supabase
+     .from('{{table_name}}')
+     .select('*')
+     .eq('user_id', user.id);
+   console.log('Query result:', { data: queryData, error: queryError });`
+        }
+      }
+    ],
+    nextSteps: [1, 4, 25],
+    workflowChains: [
+      {
+        id: "auto-db-migration",
+        name: "自動化資料庫建置 → Migration 流程",
+        description: "自動生成資料庫後，使用 Migration 管理版本",
+        steps: [60, 4],
+        tags: ["資料庫", "Migration", "自動化"]
+      },
+      {
+        id: "auto-db-rls",
+        name: "自動化資料庫建置 → RLS 檢查流程",
+        description: "自動生成資料庫後，檢查 RLS 政策是否正確",
+        steps: [60, 1],
+        tags: ["資料庫", "RLS", "安全性"]
       }
     ]
   }
