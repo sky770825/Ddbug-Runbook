@@ -10643,6 +10643,7 @@ COMMENT ON POLICY "Users can read from {{folder_name}} folder" ON storage.object
       { id: "61-6", label: "驗證所有工具設定正確", completed: false },
       { id: "61-7", label: "在自己的專案中集成自動化腳本", completed: false },
       { id: "61-8", label: "執行專案套餐自動化串接", completed: false },
+      { id: "61-9", label: "執行完全自動化設定（整合所有功能）", completed: false },
     ],
     prompts: [
       {
@@ -11443,7 +11444,179 @@ COMMENT ON POLICY "Users can read from {{folder_name}} folder" ON storage.object
    echo "📋 使用專案套餐:"
    echo "  完整套餐: npm run bundle"
    echo "  自動安裝: npm run bundle:auto"
-   echo "  僅檢查: npm run bundle:check"`
+          echo "  僅檢查: npm run bundle:check"`
+        }
+      },
+      {
+        id: "p61-7",
+        title: "7. 完全自動化設定（整合所有功能）",
+        description: "一鍵執行完整的自動化流程：系統串聯、API 串接、API 寫入自動化、自動化檢測",
+        keywords: ["full", "auto", "complete", "all-in-one", "integration", "setup", "automation"],
+        variables: [
+          {
+            key: "supabase_ref",
+            label: "Supabase Project Reference",
+            placeholder: "例如：abcdefghijklmnop",
+            description: "您的 Supabase 專案 Reference ID（可選，如果需要自動連接專案）"
+          },
+          {
+            key: "skip_login",
+            label: "跳過登入步驟",
+            placeholder: "true 或 false",
+            description: "是否跳過 CLI 工具的登入步驟（預設：false）"
+          },
+          {
+            key: "skip_keys",
+            label: "跳過 API Keys 取得",
+            placeholder: "true 或 false",
+            description: "是否跳過 API Keys 取得步驟（預設：false）"
+          }
+        ],
+        prompts: {
+          diagnostic: `【Cursor 自動化指令】檢查完全自動化設定腳本狀態
+
+請自動執行以下檢查：
+
+1. 檢查 full-auto-setup.cjs 腳本是否存在：
+   test -f scripts/full-auto-setup.cjs && echo "✓ full-auto-setup.cjs 存在" || echo "✗ full-auto-setup.cjs 不存在"
+
+2. 檢查 package.json 中是否已添加 auto-setup 腳本：
+   grep -q "\"auto-setup\"" package.json 2>/dev/null && echo "✓ npm run auto-setup 已設定" || echo "✗ npm run auto-setup 未設定"
+
+3. 檢查所有依賴的腳本是否存在：
+   test -f scripts/fetch-keys.cjs && echo "✓ fetch-keys.cjs 存在" || echo "✗ fetch-keys.cjs 不存在"
+   test -f scripts/setup-env.cjs && echo "✓ setup-env.cjs 存在" || echo "✗ setup-env.cjs 不存在"
+   test -f scripts/health-check.cjs && echo "✓ health-check.cjs 存在" || echo "✗ health-check.cjs 不存在"
+
+4. 檢查當前專案狀態：
+   test -f .automation-keys.json && echo "✓ .automation-keys.json 存在" || echo "✗ .automation-keys.json 不存在"
+   test -f .env.local && echo "✓ .env.local 存在" || echo "✗ .env.local 不存在"
+   test -d node_modules && echo "✓ 依賴已安裝" || echo "✗ 依賴未安裝"`,
+          fix: `【Cursor 自動化指令】執行完全自動化設定
+
+請自動執行以下操作，完成從頭到尾的自動化設定：
+
+1. 檢查並建立完全自動化腳本（如果不存在）：
+   # 檢查 scripts 目錄
+   mkdir -p scripts
+   
+   # 檢查腳本是否存在
+   if [ ! -f scripts/full-auto-setup.cjs ]; then
+     echo "⚠️  full-auto-setup.cjs 不存在，請從專案中複製或建立"
+     echo "   腳本位置：scripts/full-auto-setup.cjs"
+     echo "   或執行：npm run bundle 先使用專案套餐功能"
+   fi
+
+2. 在 package.json 中添加腳本（如果尚未添加）：
+   # 檢查是否已存在
+   if ! grep -q "\"auto-setup\"" package.json 2>/dev/null; then
+     echo "📝 請在 package.json 的 scripts 區塊中添加："
+     echo '  "auto-setup": "node scripts/full-auto-setup.cjs",'
+     echo '  "auto-setup:full": "node scripts/full-auto-setup.cjs",'
+     echo '  "auto-setup:quick": "node scripts/full-auto-setup.cjs --skip-login --skip-keys"'
+   fi
+
+3. 執行完全自動化設定：
+   # 基本執行（完整流程）
+   npm run auto-setup
+   
+   # 或指定 Supabase Project Reference
+   npm run auto-setup -- --supabase-ref={{supabase_ref}}
+   
+   # 或跳過登入步驟（使用現有登入狀態）
+   # 如果 skip_login 為 true，取消下面這行的註解：
+   # npm run auto-setup -- --skip-login
+   
+   # 或跳過 API Keys 取得（使用現有 Keys）
+   # 如果 skip_keys 為 true，取消下面這行的註解：
+   # npm run auto-setup -- --skip-keys
+   
+   # 或快速模式（跳過登入和 Keys 取得）
+   npm run auto-setup:quick
+
+4. 腳本會自動執行以下完整流程：
+   
+   a) 系統串聯：
+      - 檢查所有 CLI 工具（Supabase、GitHub、Cloudflare、Node.js、npm、Git）
+      - 自動安裝缺失的工具
+      - 自動登入 CLI 工具（需要互動確認）
+   
+   b) API 串接：
+      - 自動取得 API Keys（透過 fetch-keys.cjs）
+      - 自動設定環境變數（透過 setup-env.cjs）
+      - 自動驗證環境變數格式
+   
+   c) API 寫入自動化：
+      - 自動連接 Supabase 專案（如果提供了 Project Reference）
+      - 準備好進行後續 Supabase 操作
+   
+   d) 自動化檢測：
+      - 執行完整健康檢查（透過 health-check.cjs）
+      - 產生詳細報告
+
+5. 執行完成後，腳本會產生完整報告：
+   - 顯示所有 CLI 工具的安裝狀態
+   - 顯示 API Keys 取得狀態
+   - 顯示環境變數設定狀態
+   - 顯示健康檢查結果
+   - 提供錯誤報告（如有）
+   - 提供下一步建議
+
+6. 適用場景：
+   - 新專案：一鍵完成所有設定
+   - 現有專案：檢查並補充缺失的配置
+   - CI/CD：使用 --skip-login 參數進行自動化部署
+   - 快速檢查：使用 auto-setup:quick 快速驗證狀態`,
+          verify: `【Cursor 自動化指令】驗證完全自動化設定執行結果
+
+請自動執行以下驗證：
+
+1. 驗證腳本是否正常執行：
+   npm run auto-setup -- --skip-login --skip-keys --skip-health 2>&1 | head -50
+
+2. 驗證所有步驟是否完成：
+   # 檢查 CLI 工具
+   npx supabase --version && echo "✓ Supabase CLI 已安裝" || echo "✗ Supabase CLI 未安裝"
+   node --version && echo "✓ Node.js 已安裝" || echo "✗ Node.js 未安裝"
+   npm --version && echo "✓ npm 已安裝" || echo "✗ npm 未安裝"
+   git --version && echo "✓ Git 已安裝" || echo "✗ Git 未安裝"
+   
+   # 檢查 API Keys
+   test -f .automation-keys.json && echo "✓ API Keys 檔案存在" || echo "✗ API Keys 檔案不存在"
+   
+   # 檢查環境變數
+   test -f .env.local && echo "✓ .env.local 存在" || echo "✗ .env.local 不存在"
+   grep -q "NEXT_PUBLIC_SUPABASE_URL" .env.local 2>/dev/null && echo "✓ Supabase URL 已設定" || echo "✗ Supabase URL 未設定"
+   grep -q "NEXT_PUBLIC_SUPABASE_ANON_KEY" .env.local 2>/dev/null && echo "✓ Supabase Anon Key 已設定" || echo "✗ Supabase Anon Key 未設定"
+
+3. 驗證 Supabase 連接（如果提供了 Project Reference）：
+   # 如果提供了 supabase_ref，執行以下命令：
+   # npx supabase projects list 2>&1 | grep -q "{{supabase_ref}}" && echo "✓ Supabase 專案已連接" || echo "✗ Supabase 專案未連接"
+   # 如果未提供，跳過此驗證
+
+4. 執行健康檢查驗證：
+   npm run health 2>&1 | tail -20
+
+5. 產生完全自動化驗證報告：
+   echo ""
+   echo "=== 完全自動化設定驗證報告 ==="
+   echo "CLI 工具狀態:"
+   echo "  Supabase CLI: $(npx supabase --version 2>&1 | head -1 || echo '未安裝')"
+   echo "  Node.js: $(node --version 2>&1 || echo '未安裝')"
+   echo "  npm: $(npm --version 2>&1 || echo '未安裝')"
+   echo "  Git: $(git --version 2>&1 | head -1 || echo '未安裝')"
+   echo ""
+   echo "API Keys 狀態:"
+   echo "  Keys 檔案: $(test -f .automation-keys.json && echo '存在' || echo '不存在')"
+   echo ""
+   echo "環境變數狀態:"
+   echo "  .env.local: $(test -f .env.local && echo '存在' || echo '不存在')"
+   echo "  Supabase URL: $(grep -q 'NEXT_PUBLIC_SUPABASE_URL' .env.local 2>/dev/null && echo '已設定' || echo '未設定')"
+   echo ""
+   echo "📋 使用完全自動化:"
+   echo "  完整流程: npm run auto-setup"
+   echo "  指定專案: npm run auto-setup -- --supabase-ref=xxxxx"
+   echo "  快速模式: npm run auto-setup:quick"`
         }
       }
     ],
