@@ -11637,6 +11637,433 @@ COMMENT ON POLICY "Users can read from {{folder_name}} folder" ON storage.object
         tags: ["環境建置", "API Keys", "環境變數"]
       }
     ]
+  },
+  // ===== 網址分享 Meta 標籤問題 =====
+  {
+    id: 62,
+    title: "網址分享時顯示錯誤或預設內容",
+    shortTitle: "分享預覽問題",
+    purpose: "解決 SPA 應用程式在分享網址時，社交媒體平台（LINE、Facebook、Twitter 等）顯示錯誤訊息或預設內容，而非動態路由的實際內容。",
+    badge: "common",
+    category: "frontend",
+    keywords: ["meta", "og", "open graph", "seo", "分享", "預覽", "社交媒體", "動態路由", "spa", "cloudflare", "pages"],
+    checklist: [
+      { id: "62-1", label: "檢查當前 meta 標籤設定", completed: false },
+      { id: "62-2", label: "實作動態 meta 標籤更新", completed: false },
+      { id: "62-3", label: "設定 Cloudflare Pages Functions 處理動態路由", completed: false },
+      { id: "62-4", label: "測試分享預覽效果", completed: false },
+    ],
+    prompts: [
+      {
+        id: "p62-1",
+        title: "1. 診斷網址分享預覽問題",
+        description: "檢查當前 meta 標籤設定和分享預覽問題",
+        keywords: ["diagnostic", "check", "meta", "og", "preview"],
+        prompts: {
+          diagnostic: `【Cursor 自動化指令】診斷網址分享預覽問題
+
+請自動執行以下檢查：
+
+1. 檢查 index.html 中的 meta 標籤：
+   cat index.html | grep -E "og:|twitter:|meta.*description" | head -20
+
+2. 檢查是否有動態更新 meta 標籤的機制：
+   grep -r "document.title\|meta\|og:" src/ --include="*.tsx" --include="*.ts" | head -10
+
+3. 測試分享預覽（使用 Open Graph 測試工具）：
+   # 方法一：使用 Facebook Sharing Debugger
+   echo "前往: https://developers.facebook.com/tools/debug/"
+   echo "輸入您的網址進行測試"
+   
+   # 方法二：使用 Twitter Card Validator
+   echo "前往: https://cards-dev.twitter.com/validator"
+   echo "輸入您的網址進行測試"
+   
+   # 方法三：使用 LINE 分享測試
+   echo "在 LINE 中分享網址，查看預覽效果"
+
+4. 檢查問題現象：
+   # 常見問題：
+   # - 顯示「找不到物件」或「Property not found」
+   # - 顯示預設的網站標題而非動態內容
+   # - 顯示錯誤的圖片或描述
+   # - 分享特定路由（如 /property-detail?number=TT00012）時顯示錯誤
+
+5. 檢查路由設定：
+   # 確認是否有動態路由
+   grep -r "property-detail\|useParams\|useSearchParams" src/ --include="*.tsx" | head -10`,
+          fix: `【Cursor 自動化指令】修復網址分享預覽問題
+
+請自動執行以下操作，修復網址分享時的 meta 標籤問題：
+
+1. 安裝 React Helmet（用於動態更新 meta 標籤）：
+   npm install react-helmet-async
+
+2. 在 App.tsx 中設定 HelmetProvider：
+   # 修改 src/App.tsx
+   import { HelmetProvider } from 'react-helmet-async';
+   
+   # 在 App 組件中包裹：
+   <HelmetProvider>
+     {/* 現有的 Router 等內容 */}
+   </HelmetProvider>
+
+3. 在動態路由頁面中使用 Helmet 更新 meta 標籤：
+   # 例如：property-detail 頁面
+   import { Helmet } from 'react-helmet-async';
+   import { useSearchParams } from 'react-router-dom';
+   import { useEffect, useState } from 'react';
+   
+   function PropertyDetail() {
+     const [searchParams] = useSearchParams();
+     const propertyNumber = searchParams.get('number');
+     const [property, setProperty] = useState(null);
+     
+     // 從 API 取得物件資料
+     useEffect(() => {
+       if (propertyNumber) {
+         // 取得物件資料
+         fetchProperty(propertyNumber).then(setProperty);
+       }
+     }, [propertyNumber]);
+     
+     return (
+       <>
+         <Helmet>
+           <title>{property ? \`\${property.title} | 住商不動產\` : '物件詳細資訊 | 住商不動產'}</title>
+           <meta name="description" content={property ? property.description : '物件詳細資訊'} />
+           <meta property="og:title" content={property ? \`\${property.title} | 住商不動產\` : '物件詳細資訊 | 住商不動產'} />
+           <meta property="og:description" content={property ? property.description : '物件詳細資訊'} />
+           <meta property="og:image" content={property?.image || 'https://your-site.com/default-image.jpg'} />
+           <meta property="og:url" content={\`https://flyjung168.pages.dev/property-detail?number=\${propertyNumber}\`} />
+           <meta property="og:type" content="website" />
+           <meta name="twitter:card" content="summary_large_image" />
+           <meta name="twitter:title" content={property ? \`\${property.title} | 住商不動產\` : '物件詳細資訊 | 住商不動產'} />
+           <meta name="twitter:description" content={property ? property.description : '物件詳細資訊'} />
+           <meta name="twitter:image" content={property?.image || 'https://your-site.com/default-image.jpg'} />
+         </Helmet>
+         {/* 頁面內容 */}
+       </>
+     );
+   }
+
+4. 重要：對於社交媒體爬蟲，需要服務端渲染 meta 標籤
+   # 方案一：使用 Cloudflare Pages Functions（推薦）
+   # 建立 functions/_middleware.ts
+   
+   export async function onRequest(context) {
+     const { request, next } = context;
+     const url = new URL(request.url);
+     
+     // 檢查是否為社交媒體爬蟲
+     const userAgent = request.headers.get('user-agent') || '';
+     const isBot = /facebookexternalhit|Twitterbot|LinkedInBot|WhatsApp|Slackbot|SkypeUriPreview|LINE/.test(userAgent);
+     
+     if (isBot && url.pathname.startsWith('/property-detail')) {
+       const propertyNumber = url.searchParams.get('number');
+       
+       if (propertyNumber) {
+         // 從資料庫或 API 取得物件資料
+         const property = await fetchPropertyData(propertyNumber);
+         
+         if (property) {
+           // 返回包含動態 meta 標籤的 HTML
+           return new Response(\`
+             <!DOCTYPE html>
+             <html>
+               <head>
+                 <meta charset="UTF-8">
+                 <title>\${property.title} | 住商不動產</title>
+                 <meta name="description" content="\${property.description}">
+                 <meta property="og:title" content="\${property.title} | 住商不動產">
+                 <meta property="og:description" content="\${property.description}">
+                 <meta property="og:image" content="\${property.image}">
+                 <meta property="og:url" content="\${url.href}">
+                 <meta property="og:type" content="website">
+                 <meta name="twitter:card" content="summary_large_image">
+                 <meta name="twitter:title" content="\${property.title} | 住商不動產">
+                 <meta name="twitter:description" content="\${property.description}">
+                 <meta name="twitter:image" content="\${property.image}">
+                 <script>
+                   // 重定向到實際的 SPA 頁面
+                   window.location.href = '\${url.href}';
+                 </script>
+               </head>
+               <body>
+                 <p>正在載入...</p>
+               </body>
+             </html>
+           \`, {
+             headers: { 'Content-Type': 'text/html' }
+           });
+         }
+       }
+     }
+     
+     // 非爬蟲請求，正常處理
+     return next();
+   }
+
+5. 建立 Cloudflare Pages Functions 目錄結構：
+   mkdir -p functions
+   # 建立 functions/_middleware.ts（如上）
+
+6. 更新 wrangler.toml（如果需要）：
+   # Cloudflare Pages Functions 會自動偵測 functions 目錄
+   # 不需要額外設定`,
+          verify: `【Cursor 自動化指令】驗證網址分享預覽修復
+
+請自動執行以下驗證：
+
+1. 測試 Facebook 分享預覽：
+   # 使用 Facebook Sharing Debugger
+   echo "前往: https://developers.facebook.com/tools/debug/"
+   echo "輸入網址: https://flyjung168.pages.dev/property-detail?number=TT00012"
+   echo "點擊「偵錯」查看預覽效果"
+   echo "如果顯示正確的標題和圖片，表示修復成功"
+
+2. 測試 LINE 分享預覽：
+   # 在 LINE 中分享網址
+   echo "在 LINE 中分享: https://flyjung168.pages.dev/property-detail?number=TT00012"
+   echo "檢查預覽是否顯示正確的物件資訊"
+
+3. 測試 Twitter 分享預覽：
+   # 使用 Twitter Card Validator
+   echo "前往: https://cards-dev.twitter.com/validator"
+   echo "輸入網址進行測試"
+
+4. 檢查 meta 標籤是否正確更新：
+   # 使用 curl 模擬社交媒體爬蟲
+   curl -A "facebookexternalhit/1.1" "https://flyjung168.pages.dev/property-detail?number=TT00012" | grep -E "og:|twitter:" | head -20
+
+5. 驗證動態內容：
+   # 檢查不同物件編號是否顯示不同的 meta 標籤
+   curl -A "facebookexternalhit/1.1" "https://flyjung168.pages.dev/property-detail?number=TT00012" | grep "og:title"
+   curl -A "facebookexternalhit/1.1" "https://flyjung168.pages.dev/property-detail?number=TT00013" | grep "og:title"
+   # 應該顯示不同的標題
+
+6. 檢查錯誤處理：
+   # 測試不存在的物件編號
+   curl -A "facebookexternalhit/1.1" "https://flyjung168.pages.dev/property-detail?number=INVALID" | grep "og:title"
+   # 應該顯示預設或錯誤訊息，而非「找不到物件」`
+        }
+      },
+      {
+        id: "p62-2",
+        title: "2. 使用 Cloudflare Pages Functions 實作（推薦）",
+        description: "使用 Cloudflare Pages Functions 在服務端動態生成 meta 標籤，確保社交媒體爬蟲能正確讀取",
+        keywords: ["cloudflare", "functions", "middleware", "server-side", "meta", "og"],
+        variables: [
+          {
+            key: "site_url",
+            label: "網站網址",
+            placeholder: "例如：https://flyjung168.pages.dev",
+            description: "您的網站完整網址（用於 og:url）"
+          },
+          {
+            key: "api_url",
+            label: "API 網址",
+            placeholder: "例如：https://api.example.com",
+            description: "取得物件資料的 API 網址（可選）"
+          }
+        ],
+        prompts: {
+          diagnostic: `【Cursor 自動化指令】檢查 Cloudflare Pages Functions 設定
+
+請自動執行以下檢查：
+
+1. 檢查 functions 目錄是否存在：
+   test -d functions && echo "✓ functions 目錄存在" || echo "✗ functions 目錄不存在"
+
+2. 檢查 _middleware.ts 是否存在：
+   test -f functions/_middleware.ts && echo "✓ _middleware.ts 存在" || echo "✗ _middleware.ts 不存在"
+
+3. 檢查 Cloudflare Pages Functions 設定：
+   # Cloudflare Pages 會自動偵測 functions 目錄
+   # 不需要額外設定
+
+4. 檢查部署狀態：
+   # 確認 functions 目錄已包含在部署中
+   ls -la functions/ 2>/dev/null || echo "functions 目錄不存在"`,
+          fix: `【Cursor 自動化指令】建立 Cloudflare Pages Functions 處理動態 meta 標籤
+
+請自動執行以下操作：
+
+1. 建立 functions 目錄：
+   mkdir -p functions
+
+2. 建立 functions/_middleware.ts：
+   cat > functions/_middleware.ts << 'EOF'
+   export async function onRequest(context: any) {
+     const { request, next } = context;
+     const url = new URL(request.url);
+     
+     // 檢查是否為社交媒體爬蟲
+     const userAgent = request.headers.get('user-agent') || '';
+     const isBot = /facebookexternalhit|Twitterbot|LinkedInBot|WhatsApp|Slackbot|SkypeUriPreview|LINE|Googlebot|bingbot/i.test(userAgent);
+     
+     // 處理動態路由（例如：property-detail）
+     if (isBot && url.pathname.startsWith('/property-detail')) {
+       const propertyNumber = url.searchParams.get('number');
+       
+       if (propertyNumber) {
+         try {
+           // 從 Supabase 或 API 取得物件資料
+           const property = await fetchPropertyData(propertyNumber, context);
+           
+           if (property) {
+             // 返回包含動態 meta 標籤的 HTML
+             return new Response(\`
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>\${escapeHtml(property.title || '物件詳細資訊')} | 住商不動產</title>
+  <meta name="description" content="\${escapeHtml(property.description || '物件詳細資訊')}">
+  
+  <!-- Open Graph -->
+  <meta property="og:title" content="\${escapeHtml(property.title || '物件詳細資訊')} | 住商不動產">
+  <meta property="og:description" content="\${escapeHtml(property.description || '物件詳細資訊')}">
+  <meta property="og:image" content="\${property.image || '{{site_url}}/default-image.jpg'}">
+  <meta property="og:url" content="\${url.href}">
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="住商不動產">
+  
+  <!-- Twitter Card -->
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="\${escapeHtml(property.title || '物件詳細資訊')} | 住商不動產">
+  <meta name="twitter:description" content="\${escapeHtml(property.description || '物件詳細資訊')}">
+  <meta name="twitter:image" content="\${property.image || '{{site_url}}/default-image.jpg'}">
+  
+  <!-- 重定向到實際的 SPA 頁面 -->
+  <script>
+    window.location.href = '\${url.href}';
+  </script>
+</head>
+<body>
+  <div style="text-align: center; padding: 50px;">
+    <h1>\${escapeHtml(property.title || '物件詳細資訊')}</h1>
+    <p>正在載入...</p>
+  </div>
+</body>
+</html>
+             \`, {
+               headers: { 
+                 'Content-Type': 'text/html; charset=utf-8',
+                 'Cache-Control': 'public, max-age=3600'
+               }
+             });
+           }
+         } catch (error) {
+           console.error('Error fetching property:', error);
+         }
+       }
+     }
+     
+     // 非爬蟲或非動態路由，正常處理
+     return next();
+   }
+   
+   // 從 Supabase 取得物件資料
+   async function fetchPropertyData(propertyNumber: string, context: any) {
+     // 方法一：使用 Supabase REST API
+     const supabaseUrl = context.env?.SUPABASE_URL || '{{api_url}}';
+     const supabaseKey = context.env?.SUPABASE_ANON_KEY || '';
+     
+     if (supabaseUrl && supabaseKey) {
+       const response = await fetch(
+         \`\${supabaseUrl}/rest/v1/properties?number=eq.\${propertyNumber}&select=*\`,
+         {
+           headers: {
+             'apikey': supabaseKey,
+             'Authorization': \`Bearer \${supabaseKey}\`
+           }
+         }
+       );
+       
+       if (response.ok) {
+         const data = await response.json();
+         return data[0] || null;
+       }
+     }
+     
+     // 方法二：使用自訂 API
+     {{#if api_url}}
+     const apiResponse = await fetch(\`{{api_url}}/properties/\${propertyNumber}\`);
+     if (apiResponse.ok) {
+       return await apiResponse.json();
+     }
+     {{/if}}
+     
+     return null;
+   }
+   
+   // HTML 轉義函數
+   function escapeHtml(text: string) {
+     const map: Record<string, string> = {
+       '&': '&amp;',
+       '<': '&lt;',
+       '>': '&gt;',
+       '"': '&quot;',
+       "'": '&#039;'
+     };
+     return text.replace(/[&<>"']/g, (m) => map[m]);
+   }
+   EOF
+
+3. 設定環境變數（在 Cloudflare Dashboard）：
+   # 前往 Cloudflare Dashboard > Pages > 您的專案 > Settings > Environment variables
+   # 添加以下環境變數：
+   # SUPABASE_URL = https://xxxxx.supabase.co
+   # SUPABASE_ANON_KEY = eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+
+4. 部署到 Cloudflare Pages：
+   # Functions 會自動包含在部署中
+   git add functions/
+   git commit -m "feat: 新增 Cloudflare Pages Functions 處理動態 meta 標籤"
+   git push origin main
+
+5. 驗證部署：
+   # 等待部署完成後，測試分享預覽`,
+          verify: `【Cursor 自動化指令】驗證 Cloudflare Pages Functions 設定
+
+請自動執行以下驗證：
+
+1. 檢查 functions 目錄結構：
+   ls -la functions/
+   test -f functions/_middleware.ts && echo "✓ _middleware.ts 存在" || echo "✗ _middleware.ts 不存在"
+
+2. 檢查 TypeScript 語法：
+   # 如果有 TypeScript 編譯器
+   npx tsc --noEmit functions/_middleware.ts 2>&1 || echo "需要安裝 TypeScript"
+
+3. 測試本地執行（使用 Wrangler）：
+   npx wrangler pages dev dist --compatibility-date=2024-01-15
+
+4. 驗證部署後的功能：
+   # 使用 curl 模擬社交媒體爬蟲
+   curl -A "facebookexternalhit/1.1" "{{site_url}}/property-detail?number=TT00012" | grep -E "og:title|og:description" | head -5
+   
+   # 應該看到動態生成的 meta 標籤
+
+5. 檢查錯誤處理：
+   # 測試不存在的物件
+   curl -A "facebookexternalhit/1.1" "{{site_url}}/property-detail?number=INVALID" | head -20
+   # 應該返回預設內容或錯誤頁面，而非「找不到物件」`
+        }
+      }
+    ],
+    nextSteps: [19, 30], // Cloudflare Pages 部署、CI/CD
+    workflowChains: [
+      {
+        id: "seo-meta",
+        name: "SEO 優化 → Meta 標籤 → 分享預覽",
+        description: "優化網站的 SEO 和社交媒體分享預覽",
+        steps: [62, 19],
+        tags: ["SEO", "Meta", "分享", "社交媒體"]
+      }
+    ]
   }
 ];
 
